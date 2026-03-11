@@ -1,0 +1,205 @@
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "postgresql"
+  url      = env("DATABASE_URL")
+}
+
+model Organization {
+  id        String   @id @default(uuid())
+  nome      String
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  users       User[]
+  pacientes   Paciente[]
+  prontuarios Prontuario[]
+  pagamentos  Pagamento[]
+  consultas   Consulta[]
+  agendas     Agenda[]
+  dentistas   Dentista[]
+  receitas    Receita[]
+}
+
+model User {
+  id             String       @id @default(uuid())
+  organizationId String
+  name           String
+  email          String       @unique
+  role           UserRole
+  createdAt      DateTime     @default(now())
+  updatedAt      DateTime     @updatedAt
+
+  organization Organization @relation(fields: [organizationId], references: [id], onDelete: Cascade)
+
+  @@index([organizationId])
+}
+
+model Paciente {
+  id             String   @id @default(uuid())
+  organizationId String
+  nome           String
+  cpf            String
+  dataNascimento DateTime
+  email          String?
+  telefone       String
+  endereco       String?
+  createdAt      DateTime @default(now())
+  updatedAt      DateTime @updatedAt
+
+  organization Organization @relation(fields: [organizationId], references: [id], onDelete: Cascade)
+  prontuario   Prontuario?
+  pagamentos   Pagamento[]
+  consultas    Consulta[]
+  receitas     Receita[]
+
+  @@unique([organizationId, cpf])
+  @@index([organizationId])
+}
+
+model Prontuario {
+  id             String   @id @default(uuid())
+  organizationId String
+  pacienteId     String   @unique
+  createdAt      DateTime @default(now())
+  updatedAt      DateTime @updatedAt
+
+  organization Organization @relation(fields: [organizationId], references: [id], onDelete: Cascade)
+  paciente     Paciente     @relation(fields: [pacienteId], references: [id], onDelete: Cascade)
+  tratamentos  Tratamento[]
+  diagnosticos Diagnostico[]
+
+  @@index([organizationId])
+}
+
+model Tratamento {
+  id           String   @id @default(uuid())
+  prontuarioId String
+  descricao    String
+  data         DateTime
+
+  prontuario Prontuario @relation(fields: [prontuarioId], references: [id], onDelete: Cascade)
+
+  @@index([prontuarioId])
+}
+
+model Diagnostico {
+  id           String   @id @default(uuid())
+  prontuarioId String
+  descricao    String
+  data         DateTime
+
+  prontuario Prontuario @relation(fields: [prontuarioId], references: [id], onDelete: Cascade)
+
+  @@index([prontuarioId])
+}
+
+model Pagamento {
+  id             String          @id @default(uuid())
+  organizationId String
+  pacienteId     String
+  valor          Decimal         @db.Decimal(10, 2)
+  status         PagamentoStatus
+  createdAt      DateTime        @default(now())
+  updatedAt      DateTime        @updatedAt
+
+  organization Organization @relation(fields: [organizationId], references: [id], onDelete: Cascade)
+  paciente     Paciente     @relation(fields: [pacienteId], references: [id], onDelete: Cascade)
+  boleto       Boleto?
+  notaFiscal   NotaFiscal?
+
+  @@index([organizationId])
+}
+
+model Boleto {
+  id           String   @id @default(uuid())
+  pagamentoId  String   @unique
+  codigoBarras String
+  vencimento   DateTime
+
+  pagamento Pagamento @relation(fields: [pagamentoId], references: [id], onDelete: Cascade)
+}
+
+model NotaFiscal {
+  id          String   @id @default(uuid())
+  pagamentoId String   @unique
+  numero      String
+  chaveAcesso String?
+  emitidaEm   DateTime
+
+  pagamento Pagamento @relation(fields: [pagamentoId], references: [id], onDelete: Cascade)
+}
+
+model Agenda {
+  id             String   @id @default(uuid())
+  organizationId String
+  dentistaId     String
+
+  organization Organization @relation(fields: [organizationId], references: [id], onDelete: Cascade)
+  dentista     Dentista     @relation(fields: [dentistaId], references: [id], onDelete: Cascade)
+  consultas    Consulta[]
+
+  @@unique([organizationId, dentistaId])
+  @@index([organizationId])
+}
+
+model Consulta {
+  id             String   @id @default(uuid())
+  organizationId String
+  agendaId       String
+  pacienteId     String
+  dentistaId     String
+  dataHora       DateTime
+  observacoes    String?
+
+  organization Organization @relation(fields: [organizationId], references: [id], onDelete: Cascade)
+  agenda       Agenda       @relation(fields: [agendaId], references: [id], onDelete: Cascade)
+  paciente     Paciente     @relation(fields: [pacienteId], references: [id], onDelete: Cascade)
+  dentista     Dentista     @relation(fields: [dentistaId], references: [id], onDelete: Cascade)
+
+  @@index([organizationId])
+}
+
+model Dentista {
+  id             String   @id @default(uuid())
+  organizationId String
+  nome           String
+  cro            String
+
+  organization Organization @relation(fields: [organizationId], references: [id], onDelete: Cascade)
+  consultas    Consulta[]
+  agendas      Agenda[]
+  receitas     Receita[]
+
+  @@unique([organizationId, cro])
+  @@index([organizationId])
+}
+
+model Receita {
+  id             String   @id @default(uuid())
+  organizationId String
+  dentistaId     String
+  pacienteId     String
+  conteudo       String
+  createdAt      DateTime @default(now())
+
+  organization Organization @relation(fields: [organizationId], references: [id], onDelete: Cascade)
+  dentista     Dentista     @relation(fields: [dentistaId], references: [id], onDelete: Cascade)
+  paciente     Paciente     @relation(fields: [pacienteId], references: [id], onDelete: Cascade)
+
+  @@index([organizationId])
+}
+
+enum UserRole {
+  ADMIN
+  SECRETARY
+  DENTIST
+}
+
+enum PagamentoStatus {
+  PENDENTE
+  PAGO
+  CANCELADO
+}
