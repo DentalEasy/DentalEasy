@@ -2,6 +2,7 @@
 
 # dependencies
 /node_modules
+/DentalEasy-Backend/node_modules
 /.pnp
 .pnp.*
 .yarn/*
@@ -17,12 +18,16 @@
 /.next/
 /out/
 
+# backend build
+/DentalEasy-Backend/dist
+
 # production
 /build
 
 # misc
 .DS_Store
 *.pem
+*.zip
 
 # debug
 npm-debug.log*
@@ -34,6 +39,8 @@ yarn-error.log*
 .env*
 !.env.example
 !**/.env.example
+/DentalEasy-Backend/.env
+/DentalEasy-Backend/.env.*
 
 # vercel
 .vercel
@@ -42,5 +49,5 @@ yarn-error.log*
 *.tsbuildinfo
 next-env.d.ts
 
-.vercel
+# local env
 .env*.local
