@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useMemo } from "react";
+import { useEffect, useMemo, useState } from "react";
 import {
   Search,
   DollarSign,
@@ -53,6 +53,12 @@ import { PageTransition } from "@/lib/animations";
 import { useToast } from "@/components/ui/toast";
 import { useClinic } from "@/contexts/clinic-context";
 import type { Patient } from "@/types";
+import {
+  ApiError,
+  createPayment,
+  listFinancialRecords,
+  listPatients,
+} from "@/lib/api";
 
 // ─── Types ───
 interface PendingCharge {
@@ -74,54 +80,9 @@ interface PaymentSplit {
   installments: number;
 }
 
-// ─── Mock Data ───
-const mockPatients: (Patient & { pendingCharges: PendingCharge[] })[] = [
-  {
-    id: "p1", organizationId: "org_01", name: "Maria Silva", email: "maria@email.com",
-    phone: "17999765432", cpf: "12345678900", birthDate: "1990-05-15",
-    serasaStatus: "GREEN", createdAt: "2025-01-15", updatedAt: "2026-03-01",
-    pendingCharges: [
-      { id: "c1", description: "Restauração (dente 36)", procedureDate: "2026-03-01", dueDate: "2026-03-09", amount: 350, status: "PENDING", paidAmount: 0 },
-      { id: "c2", description: "Limpeza + Aplicação de Flúor", procedureDate: "2026-03-05", dueDate: "2026-03-15", amount: 280, status: "PENDING", paidAmount: 0 },
-    ],
-  },
-  {
-    id: "p2", organizationId: "org_01", name: "João Oliveira", email: "joao@email.com",
-    phone: "17999654321", cpf: "98765432100", birthDate: "1985-11-20",
-    serasaStatus: "YELLOW", createdAt: "2025-02-20", updatedAt: "2026-02-28",
-    pendingCharges: [
-      { id: "c3", description: "Canal + Coroa (dente 16)", procedureDate: "2026-02-10", dueDate: "2026-02-20", amount: 2800, status: "OVERDUE", paidAmount: 0 },
-      { id: "c4", description: "Consulta de Retorno", procedureDate: "2026-03-07", dueDate: "2026-03-20", amount: 150, status: "PENDING", paidAmount: 0 },
-    ],
-  },
-  {
-    id: "p3", organizationId: "org_01", name: "Ana Costa", email: "ana@email.com",
-    phone: "17999543210", cpf: "11122233344", birthDate: "1978-03-08",
-    serasaStatus: "RED", createdAt: "2025-03-01", updatedAt: "2026-03-01",
-    pendingCharges: [
-      { id: "c5", description: "Prótese Parcial Removível", procedureDate: "2026-01-15", dueDate: "2026-02-15", amount: 1800, status: "OVERDUE", paidAmount: 600 },
-      { id: "c6", description: "Extração (dente 38)", procedureDate: "2026-03-02", dueDate: "2026-03-09", amount: 400, status: "PENDING", paidAmount: 0 },
-    ],
-  },
-  {
-    id: "p4", organizationId: "org_01", name: "Carlos Mendes", email: "carlos@email.com",
-    phone: "17999432109", cpf: "55566677788", birthDate: "1995-07-25",
-    serasaStatus: "GREEN", createdAt: "2025-04-10", updatedAt: "2026-03-08",
-    pendingCharges: [
-      { id: "c7", description: "Clareamento a Laser", procedureDate: "2026-03-08", dueDate: "2026-03-22", amount: 1500, status: "PENDING", paidAmount: 0 },
-    ],
-  },
-  {
-    id: "p5", organizationId: "org_01", name: "Fernanda Rocha", email: "fernanda@email.com",
-    phone: "17999321098", cpf: "99988877766", birthDate: "2000-12-01",
-    serasaStatus: "GREEN", createdAt: "2025-06-01", updatedAt: "2026-03-05",
-    pendingCharges: [
-      { id: "c8", description: "Manutenção Aparelho Ortodôntico", procedureDate: "2026-03-05", dueDate: "2026-03-10", amount: 250, status: "PENDING", paidAmount: 0 },
-      { id: "c9", description: "Radiografia Panorâmica", procedureDate: "2026-03-05", dueDate: "2026-03-10", amount: 120, status: "PENDING", paidAmount: 0 },
-    ],
-  },
-];
+type PatientWithCharges = Patient & { pendingCharges: PendingCharge[] };
 
+// ─── Config de metodos ───
 const PAYMENT_METHODS: { value: PaymentMethodType; label: string; icon: typeof CreditCard; color: string }[] = [
   { value: "PIX", label: "PIX", icon: QrCode, color: "bg-teal-50 text-teal-700 border-teal-200 hover:bg-teal-100" },
   { value: "CREDIT_CARD", label: "Crédito", icon: CreditCard, color: "bg-blue-50 text-blue-700 border-blue-200 hover:bg-blue-100" },
@@ -136,8 +97,11 @@ const METHOD_LABELS: Record<PaymentMethodType, string> = {
 
 export default function PaymentsPage() {
   // ─── State ───
+  const [patients, setPatients] = useState<PatientWithCharges[]>([]);
+  const [isLoadingData, setIsLoadingData] = useState(true);
+  const [isSubmitting, setIsSubmitting] = useState(false);
   const [searchQuery, setSearchQuery] = useState("");
-  const [selectedPatient, setSelectedPatient] = useState<(typeof mockPatients)[number] | null>(null);
+  const [selectedPatient, setSelectedPatient] = useState<PatientWithCharges | null>(null);
   const [selectedCharges, setSelectedCharges] = useState<Set<string>>(new Set());
   const [discountType, setDiscountType] = useState<"percent" | "fixed">("percent");
   const [discountValue, setDiscountValue] = useState<string>("");
@@ -152,17 +116,79 @@ export default function PaymentsPage() {
   const { addToast } = useToast();
   const { organization } = useClinic();
 
+  const loadData = async () => {
+    try {
+      setIsLoadingData(true);
+      const [patientsData, financialRecordsData] = await Promise.all([
+        listPatients(),
+        listFinancialRecords({ type: "INCOME" }),
+      ]);
+
+      const pendingByPatient = new Map<string, PendingCharge[]>();
+      for (const record of financialRecordsData) {
+        if (!record.patientId || record.paymentStatus === "CANCELLED") continue;
+        const remainingAmount = Math.max(record.remainingAmount ?? record.amount, 0);
+        if (remainingAmount <= 0.009) continue;
+
+        const charge: PendingCharge = {
+          id: record.id,
+          description: record.description,
+          procedureDate: record.createdAt,
+          dueDate: record.dueDate,
+          amount: record.amount,
+          status:
+            record.paymentStatus === "OVERDUE"
+              ? "OVERDUE"
+              : (record.paidAmount ?? 0) > 0
+              ? "PARTIAL"
+              : "PENDING",
+          paidAmount: record.paidAmount ?? 0,
+        };
+
+        const current = pendingByPatient.get(record.patientId) ?? [];
+        current.push(charge);
+        pendingByPatient.set(record.patientId, current);
+      }
+
+      const nextPatients: PatientWithCharges[] = patientsData
+        .map((patient) => ({
+          ...patient,
+          pendingCharges: (pendingByPatient.get(patient.id) ?? []).sort((a, b) =>
+            a.dueDate.localeCompare(b.dueDate)
+          ),
+        }))
+        .filter((patient) => patient.pendingCharges.length > 0);
+
+      setPatients(nextPatients);
+      setSelectedPatient((current) =>
+        current ? nextPatients.find((patient) => patient.id === current.id) ?? null : null
+      );
+    } catch (err) {
+      const message =
+        err instanceof ApiError
+          ? err.message
+          : "Nao foi possivel carregar pendencias financeiras.";
+      addToast({ title: "Erro ao carregar", description: message, variant: "error" });
+    } finally {
+      setIsLoadingData(false);
+    }
+  };
+
+  useEffect(() => {
+    void loadData();
+  }, []);
+
   // ─── Derived ───
   const searchResults = useMemo(() => {
     if (!searchQuery.trim()) return [];
     const q = searchQuery.toLowerCase();
-    return mockPatients.filter(
+    return patients.filter(
       (p) =>
         p.name.toLowerCase().includes(q) ||
         p.cpf.includes(q.replace(/\D/g, "")) ||
         p.phone.includes(q.replace(/\D/g, ""))
     );
-  }, [searchQuery]);
+  }, [searchQuery, patients]);
 
   const subtotal = useMemo(() => {
     if (!selectedPatient) return 0;
@@ -184,7 +210,7 @@ export default function PaymentsPage() {
   const isSplitValid = Math.abs(splitRemaining) < 0.01 && total > 0;
 
   // ─── Handlers ───
-  const handleSelectPatient = (patient: (typeof mockPatients)[number]) => {
+  const handleSelectPatient = (patient: PatientWithCharges) => {
     setSelectedPatient(patient);
     setSearchQuery("");
     setSelectedCharges(new Set());
@@ -249,16 +275,105 @@ export default function PaymentsPage() {
     );
   };
 
-  const handleConfirmPayment = () => {
-    const paymentId = `PAY-${Date.now().toString(36).toUpperCase()}`;
-    setCompletedPaymentId(paymentId);
-    setShowConfirmation(false);
-    setShowReceipt(true);
-    addToast({
-      title: "Pagamento registrado!",
-      description: `${formatCurrency(total)} recebido de ${selectedPatient?.name}`,
-      variant: "success",
-    });
+  const handleConfirmPayment = async () => {
+    if (!selectedPatient || !isSplitValid || selectedCharges.size === 0) return;
+
+    const selectedChargeItems = selectedPatient.pendingCharges.filter((charge) =>
+      selectedCharges.has(charge.id)
+    );
+    if (!selectedChargeItems.length) return;
+
+    const activeSplits = paymentSplits
+      .filter((split) => split.amount > 0)
+      .map((split) => ({ ...split, remaining: Number(split.amount.toFixed(2)) }));
+
+    if (!activeSplits.length) {
+      addToast({
+        title: "Forma de pagamento invalida",
+        description: "Informe ao menos uma forma de pagamento.",
+        variant: "error",
+      });
+      return;
+    }
+
+    try {
+      setIsSubmitting(true);
+
+      let remainingDiscount = Number(discountAmount.toFixed(2));
+      const targetAmounts = selectedChargeItems.map((charge, index) => {
+        const outstanding = Number((charge.amount - charge.paidAmount).toFixed(2));
+        let proportionalDiscount = 0;
+
+        if (remainingDiscount > 0 && subtotal > 0) {
+          proportionalDiscount =
+            index === selectedChargeItems.length - 1
+              ? remainingDiscount
+              : Number(((discountAmount * outstanding) / subtotal).toFixed(2));
+          proportionalDiscount = Math.min(proportionalDiscount, remainingDiscount, outstanding);
+          remainingDiscount = Number((remainingDiscount - proportionalDiscount).toFixed(2));
+        }
+
+        return {
+          charge,
+          target: Number(Math.max(outstanding - proportionalDiscount, 0).toFixed(2)),
+        };
+      });
+
+      const createdIds: string[] = [];
+      for (const target of targetAmounts) {
+        let chargeRemaining = target.target;
+        for (const split of activeSplits) {
+          if (chargeRemaining <= 0.009) break;
+          if (split.remaining <= 0.009) continue;
+
+          const allocatedAmount = Number(
+            Math.min(split.remaining, chargeRemaining).toFixed(2)
+          );
+          if (allocatedAmount <= 0.009) continue;
+
+          const installmentEnabled =
+            split.method === "CREDIT_CARD" && split.installments > 1;
+
+          const created = await createPayment({
+            financialRecordId: target.charge.id,
+            amount: allocatedAmount,
+            method: split.method,
+            status: "SETTLED",
+            paidAt: new Date().toISOString(),
+            receivedFrom: selectedPatient.name,
+            notes: observations || undefined,
+            installmentNumber: installmentEnabled ? 1 : undefined,
+            totalInstallments: installmentEnabled ? split.installments : undefined,
+          });
+
+          createdIds.push(created.receiptNumber ?? created.id);
+          split.remaining = Number((split.remaining - allocatedAmount).toFixed(2));
+          chargeRemaining = Number((chargeRemaining - allocatedAmount).toFixed(2));
+        }
+
+        if (chargeRemaining > 0.009) {
+          throw new Error("Nao foi possivel distribuir o valor para todos os lancamentos.");
+        }
+      }
+
+      const paymentId = createdIds[0] ?? `PAY-${Date.now().toString(36).toUpperCase()}`;
+      setCompletedPaymentId(paymentId);
+      setShowConfirmation(false);
+      setShowReceipt(true);
+      addToast({
+        title: "Pagamento registrado!",
+        description: `${formatCurrency(total)} recebido de ${selectedPatient.name}`,
+        variant: "success",
+      });
+    } catch (err) {
+      const message =
+        err instanceof ApiError
+          ? err.message
+          : "Nao foi possivel registrar o recebimento.";
+      addToast({ title: "Erro no recebimento", description: message, variant: "error" });
+    } finally {
+      setIsSubmitting(false);
+    }
   };
 
   const handlePrintReceipt = () => {
@@ -354,8 +469,10 @@ export default function PaymentsPage() {
 
   const handleNewPayment = () => {
     setShowReceipt(false);
+    setShowConfirmation(false);
     setCompletedPaymentId(null);
     handleClearPatient();
+    void loadData();
   };
 
   // ─── Render ───
@@ -454,7 +571,12 @@ export default function PaymentsPage() {
                     Pacientes com pendências
                   </p>
                   <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-3">
-                    {mockPatients
+                    {isLoadingData && (
+                      <div className="col-span-full text-sm text-neutral-400">
+                        Carregando pendencias...
+                      </div>
+                    )}
+                    {patients
                       .filter((p) => p.pendingCharges.length > 0)
                       .sort((a, b) => {
                         const aOverdue = a.pendingCharges.some((c) => c.status === "OVERDUE");
@@ -498,6 +620,11 @@ export default function PaymentsPage() {
                           </button>
                         );
                       })}
+                    {!isLoadingData && patients.length === 0 && (
+                      <div className="col-span-full text-sm text-neutral-400">
+                        Nenhuma pendencia financeira encontrada.
+                      </div>
+                    )}
                   </div>
                 </div>
               )}
@@ -889,11 +1016,11 @@ export default function PaymentsPage() {
                       {/* Confirm Button */}
                       <Button
                         className="w-full gap-2 h-11"
-                        disabled={!isSplitValid}
+                        disabled={!isSplitValid || isSubmitting || isLoadingData}
                         onClick={() => setShowConfirmation(true)}
                       >
                         <CheckCircle2 className="h-4 w-4" />
-                        Confirmar Recebimento
+                        {isSubmitting ? "Processando..." : "Confirmar Recebimento"}
                       </Button>
 
                       {!isSplitValid && selectedCharges.size > 0 && (
@@ -1007,9 +1134,13 @@ export default function PaymentsPage() {
           )}
           <DialogFooter className="gap-2">
             <Button variant="outline" onClick={() => setShowConfirmation(false)}>Cancelar</Button>
-            <Button className="gap-2" onClick={handleConfirmPayment}>
+            <Button
+              className="gap-2"
+              disabled={isSubmitting}
+              onClick={() => void handleConfirmPayment()}
+            >
               <CheckCircle2 className="h-4 w-4" />
-              Confirmar
+              {isSubmitting ? "Confirmando..." : "Confirmar"}
             </Button>
           </DialogFooter>
         </DialogContent>
@@ -1017,3 +1148,5 @@ export default function PaymentsPage() {
     </PageTransition>
   );
 }
+
+

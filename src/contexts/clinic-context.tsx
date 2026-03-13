@@ -1,42 +1,67 @@
-"use client";
+﻿"use client";
 
 import {
   createContext,
   useContext,
   useState,
+  useEffect,
   useCallback,
   type ReactNode,
 } from "react";
 import type { Organization } from "@/types";
+import { useAuth } from "./auth-context";
+import { getOrganizationSettings } from "@/lib/api";
 
 interface ClinicContextType {
   organization: Organization | null;
   setOrganization: (org: Organization) => void;
+  refreshOrganization: () => Promise<void>;
   organizationId: string | null;
   isLoading: boolean;
 }
 
 const ClinicContext = createContext<ClinicContextType | undefined>(undefined);
 
-// Organização mock para desenvolvimento
-const MOCK_ORGANIZATION: Organization = {
-  id: "org_01",
-  name: "Clínica Odonto Jales",
-  slug: "odonto-jales",
-  logoUrl: undefined,
-  phone: "(17) 99999-9999",
-  address: "Rua São Paulo, 1234",
-  city: "Jales",
-  state: "SP",
-  cnpj: "12.345.678/0001-90",
-  plan: "PRO",
-};
-
 export function ClinicProvider({ children }: { children: ReactNode }) {
+  const { organization: authenticatedOrganization } = useAuth();
   const [organization, setOrganizationState] = useState<Organization | null>(
-    MOCK_ORGANIZATION
+    authenticatedOrganization
   );
-  const [isLoading] = useState(false);
+  const [isLoading, setIsLoading] = useState(true);
+
+  const refreshOrganization = useCallback(async () => {
+    if (!authenticatedOrganization) {
+      setOrganizationState(null);
+      setIsLoading(false);
+      return;
+    }
+
+    setOrganizationState(authenticatedOrganization);
+    setIsLoading(true);
+    try {
+      const settings = await getOrganizationSettings();
+      setOrganizationState({
+        id: settings.id,
+        name: settings.name,
+        slug: settings.slug,
+        logoUrl: settings.logoUrl,
+        phone: settings.phone,
+        address: settings.address,
+        city: settings.city,
+        state: settings.state,
+        cnpj: settings.document,
+        plan: settings.plan,
+      });
+    } catch {
+      setOrganizationState(authenticatedOrganization);
+    } finally {
+      setIsLoading(false);
+    }
+  }, [authenticatedOrganization]);
+
+  useEffect(() => {
+    void refreshOrganization();
+  }, [refreshOrganization]);
 
   const setOrganization = useCallback((org: Organization) => {
     setOrganizationState(org);
@@ -47,6 +72,7 @@ export function ClinicProvider({ children }: { children: ReactNode }) {
       value={{
         organization,
         setOrganization,
+        refreshOrganization,
         organizationId: organization?.id ?? null,
         isLoading,
       }}

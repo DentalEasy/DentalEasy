@@ -1,11 +1,12 @@
 import { Router } from 'express';
 import { addDiagnosticoSchema, addTratamentoSchema } from '../../Application/DTOs';
 import { container } from '../../container';
+import { authorizeRoles } from '../middlewares/auth.middleware';
 import { getUserContext } from '../utils/user-context';
 
 const router = Router();
 
-router.post('/tratamentos', async (req, res, next) => {
+router.post('/tratamentos', authorizeRoles(['DENTIST']), async (req, res, next) => {
   try {
     const user = getUserContext(req);
     const payload = addTratamentoSchema.parse(req.body);
@@ -16,7 +17,7 @@ router.post('/tratamentos', async (req, res, next) => {
   }
 });
 
-router.post('/diagnosticos', async (req, res, next) => {
+router.post('/diagnosticos', authorizeRoles(['DENTIST']), async (req, res, next) => {
   try {
     const user = getUserContext(req);
     const payload = addDiagnosticoSchema.parse(req.body);

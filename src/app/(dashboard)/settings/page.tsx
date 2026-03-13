@@ -1,416 +1,139 @@
-"use client";
+﻿"use client";
 
-import { useState } from "react";
-import { Building2, Users, Bell, Settings, ChevronRight, Shield, Save, ChevronDown, DollarSign, Plus, Pencil, Trash2, X, Check } from "lucide-react";
+import { useEffect, useMemo, useState } from "react";
 import {
+  Bell,
+  Building2,
+  DollarSign,
+  Plus,
+  Save,
+  Shield,
+  Trash2,
+  Users,
+} from "lucide-react";
+import {
+  Badge,
+  Button,
   Card,
   CardContent,
-  Button,
+  CardHeader,
+  CardTitle,
   Input,
-  Separator,
-  Badge,
   Select,
-  SelectTrigger,
-  SelectValue,
   SelectContent,
   SelectItem,
+  SelectTrigger,
+  SelectValue,
+  Separator,
 } from "@/components/ui";
-import { useClinic } from "@/contexts/clinic-context";
-import { useAuth } from "@/contexts/auth-context";
-import { useProcedures, categoryLabels, type Procedure, type ProcedureCategory } from "@/contexts/procedures-context";
-import { formatCurrency } from "@/lib/utils";
 import { PageTransition } from "@/lib/animations";
+import { useAuth } from "@/contexts/auth-context";
+import { useClinic } from "@/contexts/clinic-context";
+import {
+  categoryLabels,
+  useProcedures,
+  type ProcedureCategory,
+} from "@/contexts/procedures-context";
+import { formatCurrency } from "@/lib/utils";
 import { useToast } from "@/components/ui/toast";
-
-const settingsItems = [
-  {
-    id: "clinic",
-    icon: Building2,
-    title: "Dados da Clínica",
-    description: "Nome, endereço, CNPJ e informações de contato",
-    meta: (org: { name?: string } | null) => org?.name,
-  },
-  {
-    id: "team",
-    icon: Users,
-    title: "Equipe & Permissões",
-    description: "Gerenciar dentistas, secretárias e acessos",
-    meta: () => undefined,
-  },
-  {
-    id: "notifications",
-    icon: Bell,
-    title: "Notificações & WhatsApp",
-    description: "Templates de mensagens e lembretes automáticos",
-    meta: () => undefined,
-  },
-  {
-    id: "procedures",
-    icon: DollarSign,
-    title: "Procedimentos & Valores",
-    description: "Tabela de preços dos procedimentos da clínica",
-    meta: () => undefined,
-  },
-  {
-    id: "plan",
-    icon: Settings,
-    title: "Plano & Assinatura",
-    description: "Gerenciar plano atual, faturas e limites de uso",
-    meta: (org: { plan?: string } | null) => org?.plan ? `Plano: ${org.plan}` : undefined,
-  },
-];
-
-function ClinicSettingsPanel({ onSave }: { onSave: () => void }) {
-  return (
-    <div className="space-y-4 pt-4 border-t border-neutral-100 mt-4">
-      <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
-        <div>
-          <label className="text-xs font-medium text-neutral-500 mb-1 block">Nome da Clínica</label>
-          <Input defaultValue="Clínica Odonto Jales" />
-        </div>
-        <div>
-          <label className="text-xs font-medium text-neutral-500 mb-1 block">CNPJ</label>
-          <Input defaultValue="12.345.678/0001-90" />
-        </div>
-        <div>
-          <label className="text-xs font-medium text-neutral-500 mb-1 block">Telefone</label>
-          <Input defaultValue="(17) 3632-1234" />
-        </div>
-        <div>
-          <label className="text-xs font-medium text-neutral-500 mb-1 block">E-mail</label>
-          <Input defaultValue="contato@odontojales.com" />
-        </div>
-      </div>
-      <div>
-        <label className="text-xs font-medium text-neutral-500 mb-1 block">Endereço</label>
-        <Input defaultValue="Rua Sete de Setembro, 1234 - Centro, Jales/SP" />
-      </div>
-      <Button size="sm" className="gap-2" onClick={onSave}><Save className="h-3.5 w-3.5" />Salvar Alterações</Button>
-    </div>
-  );
-}
-
-function TeamSettingsPanel({ onSave }: { onSave: () => void }) {
-  const members = [
-    { name: "Dr. Lucas Mendes", role: "Dentista", email: "lucas@dental.com" },
-    { name: "Ana Paula", role: "Secretária", email: "ana@dental.com" },
-    { name: "Admin", role: "Administrador", email: "admin@dental.com" },
-  ];
-  return (
-    <div className="space-y-3 pt-4 border-t border-neutral-100 mt-4">
-      {members.map((m) => (
-        <div key={m.email} className="flex items-center justify-between rounded-lg border border-neutral-100 p-3">
-          <div>
-            <p className="text-sm font-medium text-neutral-900">{m.name}</p>
-            <p className="text-xs text-neutral-400">{m.email}</p>
-          </div>
-          <span className="text-xs font-medium text-neutral-500 bg-neutral-100 px-2 py-0.5 rounded">{m.role}</span>
-        </div>
-      ))}
-      <Button variant="outline" size="sm" className="gap-2" onClick={onSave}>
-        <Users className="h-3.5 w-3.5" />Convidar Membro
-      </Button>
-    </div>
-  );
-}
-
-function NotificationsPanel({ onSave }: { onSave: () => void }) {
-  return (
-    <div className="space-y-3 pt-4 border-t border-neutral-100 mt-4">
-      {[
-        { label: "Confirmação de consulta", desc: "24h antes da consulta", enabled: true },
-        { label: "Lembrete de retorno", desc: "30 dias após último atendimento", enabled: true },
-        { label: "Cobrança automática", desc: "No dia do vencimento", enabled: false },
-      ].map((n) => (
-        <div key={n.label} className="flex items-center justify-between rounded-lg border border-neutral-100 p-3">
-          <div>
-            <p className="text-sm font-medium text-neutral-900">{n.label}</p>
-            <p className="text-xs text-neutral-400">{n.desc}</p>
-          </div>
-          <button
-            className={`relative inline-flex h-5 w-9 items-center rounded-full transition-colors cursor-pointer ${n.enabled ? "bg-neutral-900" : "bg-neutral-200"}`}
-            onClick={onSave}
-          >
-            <span className={`inline-block h-3.5 w-3.5 transform rounded-full bg-white transition-transform ${n.enabled ? "translate-x-4" : "translate-x-0.5"}`} />
-          </button>
-        </div>
-      ))}
-    </div>
-  );
-}
-
-function PlanSettingsPanel({ onSave }: { onSave: () => void }) {
-  return (
-    <div className="space-y-3 pt-4 border-t border-neutral-100 mt-4">
-      <div className="rounded-lg border border-neutral-200 p-4 bg-neutral-50">
-        <div className="flex items-center justify-between mb-2">
-          <span className="text-sm font-semibold text-neutral-900">Plano Profissional</span>
-          <span className="text-xs font-medium text-green-600 bg-green-50 px-2 py-0.5 rounded">Ativo</span>
-        </div>
-        <p className="text-xs text-neutral-400 mb-3">Pacientes ilimitados · 5 usuários · WhatsApp automático</p>
-        <div className="flex items-center justify-between">
-          <span className="text-lg font-bold text-neutral-900">R$ 197<span className="text-xs font-normal text-neutral-400">/mês</span></span>
-          <Button variant="outline" size="sm" onClick={onSave}>Alterar Plano</Button>
-        </div>
-      </div>
-    </div>
-  );
-}
-
-// ─── Procedures Management Panel ───
-function ProceduresPanel({ onSave }: { onSave: () => void }) {
-  const { procedures, addProcedure, updateProcedure, removeProcedure, toggleProcedure, categories } = useProcedures();
-  const { addToast } = useToast();
-  const [filterCategory, setFilterCategory] = useState<string>("all");
-  const [searchQuery, setSearchQuery] = useState("");
-  const [showAddForm, setShowAddForm] = useState(false);
-  const [editingId, setEditingId] = useState<string | null>(null);
-
-  // New procedure form
-  const [newName, setNewName] = useState("");
-  const [newCategory, setNewCategory] = useState<ProcedureCategory>("OUTROS");
-  const [newPrice, setNewPrice] = useState("");
-  const [newDuration, setNewDuration] = useState("60");
-
-  // Edit form
-  const [editPrice, setEditPrice] = useState("");
-  const [editName, setEditName] = useState("");
-  const [editDuration, setEditDuration] = useState("");
-
-  const filteredProcedures = procedures.filter((p) => {
-    const matchesCategory = filterCategory === "all" || p.category === filterCategory;
-    const matchesSearch = p.name.toLowerCase().includes(searchQuery.toLowerCase());
-    return matchesCategory && matchesSearch;
-  });
-
-  // Group by category
-  const groupedProcedures = filteredProcedures.reduce<Record<string, Procedure[]>>((acc, p) => {
-    const cat = p.category;
-    if (!acc[cat]) acc[cat] = [];
-    acc[cat].push(p);
-    return acc;
-  }, {});
-
-  const handleAdd = () => {
-    if (!newName.trim() || !newPrice) {
-      addToast({ title: "Preencha os campos", description: "Nome e valor são obrigatórios", variant: "warning" });
-      return;
-    }
-    addProcedure({
-      name: newName.trim(),
-      category: newCategory,
-      price: parseFloat(newPrice),
-      duration: parseInt(newDuration) || 60,
-      active: true,
-    });
-    addToast({ title: "Procedimento adicionado", description: `${newName} - ${formatCurrency(parseFloat(newPrice))}`, variant: "success" });
-    setNewName(""); setNewPrice(""); setNewDuration("60"); setNewCategory("OUTROS"); setShowAddForm(false);
-    onSave();
-  };
-
-  const handleStartEdit = (p: Procedure) => {
-    setEditingId(p.id);
-    setEditName(p.name);
-    setEditPrice(p.price.toString());
-    setEditDuration(p.duration.toString());
-  };
-
-  const handleSaveEdit = (id: string) => {
-    updateProcedure(id, {
-      name: editName.trim(),
-      price: parseFloat(editPrice),
-      duration: parseInt(editDuration) || 60,
-    });
-    addToast({ title: "Procedimento atualizado", description: `${editName} salvo com sucesso`, variant: "success" });
-    setEditingId(null);
-    onSave();
-  };
-
-  const handleRemove = (p: Procedure) => {
-    removeProcedure(p.id);
-    addToast({ title: "Procedimento removido", description: `${p.name} foi removido`, variant: "success" });
-  };
-
-  return (
-    <div className="space-y-4 pt-4 border-t border-neutral-100 mt-4">
-      {/* Search + Filter + Add */}
-      <div className="flex flex-col sm:flex-row gap-2">
-        <Input
-          placeholder="Buscar procedimento..."
-          value={searchQuery}
-          onChange={(e) => setSearchQuery(e.target.value)}
-          className="flex-1"
-        />
-        <Select onValueChange={setFilterCategory} value={filterCategory}>
-          <SelectTrigger className="w-full sm:w-[180px]">
-            <SelectValue placeholder="Categoria" />
-          </SelectTrigger>
-          <SelectContent>
-            <SelectItem value="all">Todas categorias</SelectItem>
-            {categories.map((cat) => (
-              <SelectItem key={cat} value={cat}>{categoryLabels[cat]}</SelectItem>
-            ))}
-          </SelectContent>
-        </Select>
-        <Button
-          size="sm"
-          className="gap-1.5 shrink-0"
-          onClick={() => setShowAddForm(!showAddForm)}
-        >
-          {showAddForm ? <X className="h-3.5 w-3.5" /> : <Plus className="h-3.5 w-3.5" />}
-          {showAddForm ? "Cancelar" : "Novo"}
-        </Button>
-      </div>
-
-      {/* Add Form */}
-      {showAddForm && (
-        <div className="rounded-lg border border-neutral-200 bg-neutral-50 p-4 space-y-3">
-          <p className="text-xs font-medium text-neutral-500 uppercase tracking-wider">Novo Procedimento</p>
-          <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
-            <div>
-              <label className="text-xs font-medium text-neutral-500 mb-1 block">Nome *</label>
-              <Input value={newName} onChange={(e) => setNewName(e.target.value)} placeholder="Ex: Limpeza" />
-            </div>
-            <div>
-              <label className="text-xs font-medium text-neutral-500 mb-1 block">Categoria</label>
-              <Select onValueChange={(v) => setNewCategory(v as ProcedureCategory)} value={newCategory}>
-                <SelectTrigger>
-                  <SelectValue />
-                </SelectTrigger>
-                <SelectContent>
-                  {categories.map((cat) => (
-                    <SelectItem key={cat} value={cat}>{categoryLabels[cat]}</SelectItem>
-                  ))}
-                </SelectContent>
-              </Select>
-            </div>
-            <div>
-              <label className="text-xs font-medium text-neutral-500 mb-1 block">Valor (R$) *</label>
-              <Input type="number" min="0" step="0.01" value={newPrice} onChange={(e) => setNewPrice(e.target.value)} placeholder="250.00" />
-            </div>
-            <div>
-              <label className="text-xs font-medium text-neutral-500 mb-1 block">Duração (min)</label>
-              <Input type="number" min="5" step="5" value={newDuration} onChange={(e) => setNewDuration(e.target.value)} placeholder="60" />
-            </div>
-          </div>
-          <Button size="sm" className="gap-1.5" onClick={handleAdd}>
-            <Plus className="h-3.5 w-3.5" />
-            Adicionar Procedimento
-          </Button>
-        </div>
-      )}
-
-      {/* Summary */}
-      <div className="flex items-center gap-4 text-xs text-neutral-400">
-        <span>{procedures.length} procedimentos cadastrados</span>
-        <span>{procedures.filter(p => p.active).length} ativos</span>
-      </div>
-
-      {/* Procedures List grouped by category */}
-      <div className="space-y-4 max-h-[400px] overflow-y-auto">
-        {Object.keys(groupedProcedures).length === 0 ? (
-          <p className="text-sm text-neutral-400 text-center py-4">Nenhum procedimento encontrado.</p>
-        ) : (
-          Object.entries(groupedProcedures).map(([category, procs]) => (
-            <div key={category}>
-              <div className="flex items-center gap-2 mb-2">
-                <Badge variant="secondary" className="text-[10px]">
-                  {categoryLabels[category as ProcedureCategory]}
-                </Badge>
-                <span className="text-[10px] text-neutral-400">{procs.length}</span>
-              </div>
-              <div className="space-y-1">
-                {procs.map((proc) => (
-                  <div
-                    key={proc.id}
-                    className={`flex items-center gap-3 rounded-lg border px-3 py-2 transition-colors ${
-                      proc.active ? "border-neutral-100 bg-white" : "border-neutral-100 bg-neutral-50 opacity-60"
-                    }`}
-                  >
-                    {editingId === proc.id ? (
-                      /* Edit mode */
-                      <div className="flex-1 flex flex-col sm:flex-row items-start sm:items-center gap-2">
-                        <Input
-                          value={editName}
-                          onChange={(e) => setEditName(e.target.value)}
-                          className="h-8 text-sm flex-1"
-                        />
-                        <div className="flex items-center gap-2">
-                          <div className="flex items-center gap-1">
-                            <span className="text-xs text-neutral-400">R$</span>
-                            <Input
-                              type="number"
-                              value={editPrice}
-                              onChange={(e) => setEditPrice(e.target.value)}
-                              className="h-8 text-sm w-24"
-                            />
-                          </div>
-                          <div className="flex items-center gap-1">
-                            <Input
-                              type="number"
-                              value={editDuration}
-                              onChange={(e) => setEditDuration(e.target.value)}
-                              className="h-8 text-sm w-16"
-                            />
-                            <span className="text-xs text-neutral-400">min</span>
-                          </div>
-                          <Button size="icon-sm" variant="ghost" onClick={() => handleSaveEdit(proc.id)}>
-                            <Check className="h-3.5 w-3.5 text-green-600" />
-                          </Button>
-                          <Button size="icon-sm" variant="ghost" onClick={() => setEditingId(null)}>
-                            <X className="h-3.5 w-3.5 text-neutral-400" />
-                          </Button>
-                        </div>
-                      </div>
-                    ) : (
-                      /* View mode */
-                      <>
-                        <div className="flex-1 min-w-0">
-                          <span className={`text-sm font-medium ${proc.active ? "text-neutral-900" : "text-neutral-500 line-through"}`}>
-                            {proc.name}
-                          </span>
-                          <span className="text-xs text-neutral-400 ml-2">{proc.duration}min</span>
-                        </div>
-                        <span className="text-sm font-semibold text-neutral-900 tabular-nums">
-                          {formatCurrency(proc.price)}
-                        </span>
-                        <div className="flex items-center gap-0.5">
-                          <button
-                            className={`relative inline-flex h-4 w-7 items-center rounded-full transition-colors cursor-pointer ${
-                              proc.active ? "bg-green-500" : "bg-neutral-200"
-                            }`}
-                            onClick={() => toggleProcedure(proc.id)}
-                            title={proc.active ? "Desativar" : "Ativar"}
-                          >
-                            <span className={`inline-block h-3 w-3 transform rounded-full bg-white transition-transform ${
-                              proc.active ? "translate-x-3" : "translate-x-0.5"
-                            }`} />
-                          </button>
-                          <Button size="icon-sm" variant="ghost" onClick={() => handleStartEdit(proc)}>
-                            <Pencil className="h-3 w-3 text-neutral-400" />
-                          </Button>
-                          <Button size="icon-sm" variant="ghost" onClick={() => handleRemove(proc)}>
-                            <Trash2 className="h-3 w-3 text-red-400" />
-                          </Button>
-                        </div>
-                      </>
-                    )}
-                  </div>
-                ))}
-              </div>
-            </div>
-          ))
-        )}
-      </div>
-    </div>
-  );
-}
+import {
+  ApiError,
+  createTeamMember,
+  getNotificationPreferences,
+  getOrganizationSettings,
+  getPlanInfo,
+  listTeamMembers,
+  updateNotificationPreferences,
+  updateOrganizationSettings,
+  updateTeamMember,
+} from "@/lib/api";
+import type { NotificationPreferences, TeamMember } from "@/types";
 
 export default function SettingsPage() {
-  const { organization } = useClinic();
   const { hasRole } = useAuth();
-  const [expandedCard, setExpandedCard] = useState<string | null>(null);
+  const { setOrganization } = useClinic();
+  const { procedures, categories, addProcedure, updateProcedure, removeProcedure } =
+    useProcedures();
   const { addToast } = useToast();
+
+  const [isLoading, setIsLoading] = useState(true);
+  const [organizationForm, setOrganizationForm] = useState({
+    name: "",
+    document: "",
+    email: "",
+    phone: "",
+    address: "",
+    city: "",
+    state: "",
+  });
+  const [team, setTeam] = useState<TeamMember[]>([]);
+  const [newTeamMember, setNewTeamMember] = useState({
+    name: "",
+    email: "",
+    role: "SECRETARY" as TeamMember["role"],
+    password: "",
+  });
+  const [preferences, setPreferences] = useState<NotificationPreferences>({
+    appointmentReminders: true,
+    paymentAlerts: true,
+    inventoryAlerts: true,
+    systemAlerts: true,
+    updatedAt: new Date().toISOString(),
+  });
+  const [planInfo, setPlanInfo] = useState<{
+    plan: "FREE" | "PRO" | "ENTERPRISE";
+    limits: { users: number; inventoryItems: number; reportsHistoryMonths: number };
+  } | null>(null);
+
+  const [newProcedure, setNewProcedure] = useState({
+    name: "",
+    category: "OUTROS" as ProcedureCategory,
+    price: "",
+    duration: "60",
+  });
+
+  const loadSettings = async () => {
+    try {
+      setIsLoading(true);
+      const [organization, members, notificationPrefs, plan] = await Promise.all([
+        getOrganizationSettings(),
+        listTeamMembers(),
+        getNotificationPreferences(),
+        getPlanInfo(),
+      ]);
+
+      setOrganizationForm({
+        name: organization.name ?? "",
+        document: organization.document ?? "",
+        email: organization.email ?? "",
+        phone: organization.phone ?? "",
+        address: organization.address ?? "",
+        city: organization.city ?? "",
+        state: organization.state ?? "",
+      });
+      setTeam(members);
+      setPreferences(notificationPrefs);
+      setPlanInfo(plan);
+    } catch (err) {
+      const message =
+        err instanceof ApiError ? err.message : "Nao foi possivel carregar configuracoes.";
+      addToast({ title: "Erro ao carregar", description: message, variant: "error" });
+    } finally {
+      setIsLoading(false);
+    }
+  };
+
+  useEffect(() => {
+    if (hasRole("ADMIN")) {
+      void loadSettings();
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
+
+  const activeTeamCount = useMemo(
+    () => team.filter((member) => member.active).length,
+    [team]
+  );
 
   if (!hasRole("ADMIN")) {
     return (
@@ -420,11 +143,9 @@ export default function SettingsPage() {
             <div className="flex h-14 w-14 items-center justify-center rounded-xl bg-neutral-100 mx-auto mb-4">
               <Shield className="h-6 w-6 text-neutral-400" />
             </div>
-            <h2 className="text-base font-semibold text-neutral-900 mb-1">
-              Acesso Restrito
-            </h2>
+            <h2 className="text-base font-semibold text-neutral-900 mb-1">Acesso Restrito</h2>
             <p className="text-sm text-neutral-400">
-              Apenas administradores podem acessar as configurações da clínica.
+              Apenas administradores podem acessar as configuraÃ§Ãµes.
             </p>
           </CardContent>
         </Card>
@@ -432,56 +153,582 @@ export default function SettingsPage() {
     );
   }
 
-  const handleSave = (section: string) => {
-    addToast({ title: "Configurações salvas", description: `${section} atualizado com sucesso`, variant: "success" });
+  const saveOrganization = async () => {
+    try {
+      const updated = await updateOrganizationSettings({
+        name: organizationForm.name,
+        document: organizationForm.document || undefined,
+        email: organizationForm.email || undefined,
+        phone: organizationForm.phone || undefined,
+        address: organizationForm.address || undefined,
+        city: organizationForm.city || undefined,
+        state: organizationForm.state || undefined,
+      });
+      setOrganization({
+        id: updated.id,
+        name: updated.name,
+        slug: updated.slug,
+        logoUrl: updated.logoUrl,
+        phone: updated.phone,
+        address: updated.address,
+        city: updated.city,
+        state: updated.state,
+        cnpj: updated.document,
+        plan: updated.plan,
+      });
+      addToast({
+        title: "Dados da clÃ­nica atualizados",
+        description: "ConfiguraÃ§Ãµes salvas com sucesso.",
+        variant: "success",
+      });
+    } catch (err) {
+      const message =
+        err instanceof ApiError ? err.message : "Nao foi possivel salvar dados da clinica.";
+      addToast({ title: "Erro", description: message, variant: "error" });
+    }
+  };
+
+  const createMember = async () => {
+    const name = newTeamMember.name.trim();
+    const email = newTeamMember.email.trim().toLowerCase();
+    const password = newTeamMember.password.trim();
+
+    if (!name || !email) {
+      addToast({
+        title: "Dados incompletos",
+        description: "Nome e e-mail sÃ£o obrigatÃ³rios.",
+        variant: "warning",
+      });
+      return;
+    }
+
+    if (password && password.length < 6) {
+      addToast({
+        title: "Senha invÃ¡lida",
+        description: "A senha inicial deve ter ao menos 6 caracteres.",
+        variant: "warning",
+      });
+      return;
+    }
+
+    try {
+      const created = await createTeamMember({
+        name,
+        email,
+        role: newTeamMember.role,
+        password: password || undefined,
+      });
+      setTeam((current) => [...current, created]);
+      setNewTeamMember({ name: "", email: "", role: "SECRETARY", password: "" });
+      addToast({
+        title: "Membro criado",
+        description: "UsuÃ¡rio adicionado Ã  equipe.",
+        variant: "success",
+      });
+    } catch (err) {
+      const message =
+        err instanceof ApiError ? err.message : "Nao foi possivel criar membro.";
+      addToast({ title: "Erro", description: message, variant: "error" });
+    }
+  };
+
+  const toggleMember = async (member: TeamMember) => {
+    try {
+      const updated = await updateTeamMember(member.id, { active: !member.active });
+      setTeam((current) =>
+        current.map((entry) => (entry.id === updated.id ? updated : entry))
+      );
+    } catch (err) {
+      const message =
+        err instanceof ApiError ? err.message : "Nao foi possivel atualizar membro.";
+      addToast({ title: "Erro", description: message, variant: "error" });
+    }
+  };
+
+  const savePreferences = async () => {
+    try {
+      const updated = await updateNotificationPreferences({
+        appointmentReminders: preferences.appointmentReminders,
+        paymentAlerts: preferences.paymentAlerts,
+        inventoryAlerts: preferences.inventoryAlerts,
+        systemAlerts: preferences.systemAlerts,
+      });
+      setPreferences(updated);
+      addToast({
+        title: "PreferÃªncias atualizadas",
+        description: "ConfiguraÃ§Ãµes de notificaÃ§Ã£o salvas.",
+        variant: "success",
+      });
+    } catch (err) {
+      const message =
+        err instanceof ApiError
+          ? err.message
+          : "Nao foi possivel salvar preferÃªncias de notificaÃ§Ã£o.";
+      addToast({ title: "Erro", description: message, variant: "error" });
+    }
+  };
+
+  const createProcedureFromSettings = async () => {
+    if (!newProcedure.name || !newProcedure.price) {
+      addToast({
+        title: "Dados incompletos",
+        description: "Nome e preÃ§o sÃ£o obrigatÃ³rios.",
+        variant: "warning",
+      });
+      return;
+    }
+    try {
+      await addProcedure({
+        name: newProcedure.name,
+        category: newProcedure.category,
+        price: Number(newProcedure.price),
+        duration: Number(newProcedure.duration) || 60,
+        active: true,
+      });
+      setNewProcedure({ name: "", category: "OUTROS", price: "", duration: "60" });
+      addToast({
+        title: "Procedimento criado",
+        description: "Novo procedimento adicionado ao catÃ¡logo.",
+        variant: "success",
+      });
+    } catch (err) {
+      const message =
+        err instanceof ApiError ? err.message : "Nao foi possivel criar procedimento.";
+      addToast({ title: "Erro", description: message, variant: "error" });
+    }
+  };
+
+  const toggleProcedureStatus = async (procedureId: string, active: boolean) => {
+    try {
+      await updateProcedure(procedureId, { active: !active });
+    } catch (err) {
+      const message =
+        err instanceof ApiError ? err.message : "Nao foi possivel atualizar procedimento.";
+      addToast({ title: "Erro", description: message, variant: "error" });
+    }
+  };
+
+  const deleteProcedureFromSettings = async (procedureId: string) => {
+    try {
+      await removeProcedure(procedureId);
+    } catch (err) {
+      const message =
+        err instanceof ApiError ? err.message : "Nao foi possivel remover procedimento.";
+      addToast({ title: "Erro", description: message, variant: "error" });
+    }
   };
 
   return (
     <PageTransition>
       <div className="space-y-6">
         <div>
-          <h2 className="text-lg font-semibold text-neutral-900">Configurações</h2>
+          <h2 className="text-lg font-semibold text-neutral-900">ConfiguraÃ§Ãµes</h2>
           <p className="text-sm text-neutral-400 mt-0.5">
-            Gerencie as configurações da sua clínica
+            Ajustes institucionais, equipe e catÃ¡logo
           </p>
         </div>
 
-        <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
-          {settingsItems.map((item) => {
-            const Icon = item.icon;
-            const metaText = item.meta(organization);
-            const isExpanded = expandedCard === item.id;
-            return (
-              <Card key={item.title} className="cursor-pointer hover:bg-neutral-50 transition-colors">
-                <CardContent className="p-4">
-                  <div
-                    className="flex items-start gap-3"
-                    onClick={() => setExpandedCard(isExpanded ? null : item.id)}
-                  >
-                    <div className="flex h-9 w-9 items-center justify-center rounded-lg bg-neutral-100 shrink-0">
-                      <Icon className="h-4 w-4 text-neutral-500" />
-                    </div>
-                    <div className="flex-1 min-w-0">
-                      <h3 className="text-sm font-medium text-neutral-900">{item.title}</h3>
-                      <p className="text-xs text-neutral-400 mt-0.5">{item.description}</p>
-                      {metaText && (
-                        <p className="text-xs text-primary-500 font-medium mt-1.5">{metaText}</p>
-                      )}
-                    </div>
-                    <ChevronDown className={`h-4 w-4 text-neutral-300 shrink-0 mt-0.5 transition-transform ${isExpanded ? "rotate-180" : ""}`} />
+        {isLoading ? (
+          <Card>
+            <CardContent className="p-6 text-sm text-neutral-400">Carregando...</CardContent>
+          </Card>
+        ) : (
+          <>
+            <div className="grid grid-cols-1 lg:grid-cols-2 gap-4">
+              <Card>
+                <CardHeader className="pb-3">
+                  <CardTitle className="flex items-center gap-2">
+                    <Building2 className="h-4 w-4 text-neutral-400" />
+                    Dados da ClÃ­nica
+                  </CardTitle>
+                </CardHeader>
+                <CardContent className="space-y-3">
+                  <Input
+                    value={organizationForm.name}
+                    onChange={(event) =>
+                      setOrganizationForm((current) => ({
+                        ...current,
+                        name: event.target.value,
+                      }))
+                    }
+                    placeholder="Nome da clÃ­nica"
+                  />
+                  <div className="grid grid-cols-2 gap-2">
+                    <Input
+                      value={organizationForm.document}
+                      onChange={(event) =>
+                        setOrganizationForm((current) => ({
+                          ...current,
+                          document: event.target.value,
+                        }))
+                      }
+                      placeholder="Documento/CNPJ"
+                    />
+                    <Input
+                      value={organizationForm.phone}
+                      onChange={(event) =>
+                        setOrganizationForm((current) => ({
+                          ...current,
+                          phone: event.target.value,
+                        }))
+                      }
+                      placeholder="Telefone"
+                    />
                   </div>
-
-                  {isExpanded && item.id === "clinic" && <ClinicSettingsPanel onSave={() => handleSave("Dados da Clínica")} />}
-                  {isExpanded && item.id === "team" && <TeamSettingsPanel onSave={() => handleSave("Equipe & Permissões")} />}
-                  {isExpanded && item.id === "notifications" && <NotificationsPanel onSave={() => handleSave("Notificações")} />}
-                  {isExpanded && item.id === "procedures" && <ProceduresPanel onSave={() => handleSave("Procedimentos & Valores")} />}
-                  {isExpanded && item.id === "plan" && <PlanSettingsPanel onSave={() => handleSave("Plano & Assinatura")} />}
+                  <Input
+                    value={organizationForm.email}
+                    onChange={(event) =>
+                      setOrganizationForm((current) => ({
+                        ...current,
+                        email: event.target.value,
+                      }))
+                    }
+                    placeholder="E-mail institucional"
+                  />
+                  <Input
+                    value={organizationForm.address}
+                    onChange={(event) =>
+                      setOrganizationForm((current) => ({
+                        ...current,
+                        address: event.target.value,
+                      }))
+                    }
+                    placeholder="EndereÃ§o"
+                  />
+                  <div className="grid grid-cols-2 gap-2">
+                    <Input
+                      value={organizationForm.city}
+                      onChange={(event) =>
+                        setOrganizationForm((current) => ({
+                          ...current,
+                          city: event.target.value,
+                        }))
+                      }
+                      placeholder="Cidade"
+                    />
+                    <Input
+                      value={organizationForm.state}
+                      onChange={(event) =>
+                        setOrganizationForm((current) => ({
+                          ...current,
+                          state: event.target.value,
+                        }))
+                      }
+                      placeholder="UF"
+                    />
+                  </div>
+                  <Button className="gap-2" onClick={() => void saveOrganization()}>
+                    <Save className="h-4 w-4" />
+                    Salvar ClÃ­nica
+                  </Button>
                 </CardContent>
               </Card>
-            );
-          })}
-        </div>
+
+              <Card>
+                <CardHeader className="pb-3">
+                  <CardTitle className="flex items-center gap-2">
+                    <Users className="h-4 w-4 text-neutral-400" />
+                    Equipe
+                  </CardTitle>
+                </CardHeader>
+                <CardContent className="space-y-3">
+                  <p className="text-xs text-neutral-500">
+                    {activeTeamCount} membro(s) ativo(s) de {team.length}
+                  </p>
+                  {team.map((member) => (
+                    <div
+                      key={member.id}
+                      className="flex items-center justify-between rounded-lg border border-neutral-100 px-3 py-2"
+                    >
+                      <div>
+                        <p className="text-sm font-medium text-neutral-900">{member.name}</p>
+                        <p className="text-xs text-neutral-500">
+                          {member.email} â€¢ {member.role}
+                        </p>
+                      </div>
+                      <button
+                        className={`relative inline-flex h-5 w-9 items-center rounded-full transition-colors ${
+                          member.active ? "bg-neutral-900" : "bg-neutral-200"
+                        }`}
+                        onClick={() => void toggleMember(member)}
+                      >
+                        <span
+                          className={`inline-block h-3.5 w-3.5 transform rounded-full bg-white transition-transform ${
+                            member.active ? "translate-x-4" : "translate-x-0.5"
+                          }`}
+                        />
+                      </button>
+                    </div>
+                  ))}
+                  <Separator />
+                  <Input
+                    value={newTeamMember.name}
+                    onChange={(event) =>
+                      setNewTeamMember((current) => ({
+                        ...current,
+                        name: event.target.value,
+                      }))
+                    }
+                    placeholder="Nome"
+                  />
+                  <Input
+                    value={newTeamMember.email}
+                    onChange={(event) =>
+                      setNewTeamMember((current) => ({
+                        ...current,
+                        email: event.target.value,
+                      }))
+                    }
+                    placeholder="E-mail"
+                  />
+                  <div className="grid grid-cols-2 gap-2">
+                    <Select
+                      value={newTeamMember.role}
+                      onValueChange={(value) =>
+                        setNewTeamMember((current) => ({
+                          ...current,
+                          role: value as TeamMember["role"],
+                        }))
+                      }
+                    >
+                      <SelectTrigger>
+                        <SelectValue />
+                      </SelectTrigger>
+                      <SelectContent>
+                        <SelectItem value="ADMIN">ADMIN</SelectItem>
+                        <SelectItem value="SECRETARY">SECRETARY</SelectItem>
+                        <SelectItem value="DENTIST">DENTIST</SelectItem>
+                      </SelectContent>
+                    </Select>
+                    <Input
+                      type="password"
+                      value={newTeamMember.password}
+                      onChange={(event) =>
+                        setNewTeamMember((current) => ({
+                          ...current,
+                          password: event.target.value,
+                        }))
+                      }
+                      placeholder="Senha inicial"
+                    />
+                  </div>
+                  <Button variant="outline" className="gap-2" onClick={() => void createMember()}>
+                    <Plus className="h-4 w-4" />
+                    Adicionar Membro
+                  </Button>
+                </CardContent>
+              </Card>
+            </div>
+
+            <div className="grid grid-cols-1 lg:grid-cols-2 gap-4">
+              <Card>
+                <CardHeader className="pb-3">
+                  <CardTitle className="flex items-center gap-2">
+                    <Bell className="h-4 w-4 text-neutral-400" />
+                    PreferÃªncias de NotificaÃ§Ã£o
+                  </CardTitle>
+                </CardHeader>
+                <CardContent className="space-y-3">
+                  {[
+                    {
+                      key: "appointmentReminders",
+                      label: "Lembretes de consulta",
+                    },
+                    {
+                      key: "paymentAlerts",
+                      label: "Alertas financeiros",
+                    },
+                    {
+                      key: "inventoryAlerts",
+                      label: "Alertas de estoque",
+                    },
+                    {
+                      key: "systemAlerts",
+                      label: "Comunicados do sistema",
+                    },
+                  ].map((option) => (
+                    <div
+                      key={option.key}
+                      className="flex items-center justify-between rounded-lg border border-neutral-100 px-3 py-2"
+                    >
+                      <span className="text-sm text-neutral-700">{option.label}</span>
+                      <button
+                        className={`relative inline-flex h-5 w-9 items-center rounded-full transition-colors ${
+                          preferences[
+                            option.key as keyof NotificationPreferences
+                          ]
+                            ? "bg-neutral-900"
+                            : "bg-neutral-200"
+                        }`}
+                        onClick={() =>
+                          setPreferences((current) => ({
+                            ...current,
+                            [option.key]:
+                              !current[
+                                option.key as keyof NotificationPreferences
+                              ],
+                          }))
+                        }
+                      >
+                        <span
+                          className={`inline-block h-3.5 w-3.5 transform rounded-full bg-white transition-transform ${
+                            preferences[
+                              option.key as keyof NotificationPreferences
+                            ]
+                              ? "translate-x-4"
+                              : "translate-x-0.5"
+                          }`}
+                        />
+                      </button>
+                    </div>
+                  ))}
+                  <Button className="gap-2" onClick={() => void savePreferences()}>
+                    <Save className="h-4 w-4" />
+                    Salvar PreferÃªncias
+                  </Button>
+                </CardContent>
+              </Card>
+
+              <Card>
+                <CardHeader className="pb-3">
+                  <CardTitle className="flex items-center gap-2">
+                    <DollarSign className="h-4 w-4 text-neutral-400" />
+                    Plano Atual
+                  </CardTitle>
+                </CardHeader>
+                <CardContent className="space-y-2">
+                  <Badge variant="secondary">{planInfo?.plan ?? "PRO"}</Badge>
+                  <p className="text-sm text-neutral-700">
+                    Limite de usuÃ¡rios: {planInfo?.limits.users ?? "-"}
+                  </p>
+                  <p className="text-sm text-neutral-700">
+                    Limite de itens de estoque: {planInfo?.limits.inventoryItems ?? "-"}
+                  </p>
+                  <p className="text-sm text-neutral-700">
+                    HistÃ³rico de relatÃ³rios:{" "}
+                    {planInfo?.limits.reportsHistoryMonths ?? "-"} meses
+                  </p>
+                </CardContent>
+              </Card>
+            </div>
+
+            <Card>
+              <CardHeader className="pb-3">
+                <CardTitle className="flex items-center gap-2">
+                  <DollarSign className="h-4 w-4 text-neutral-400" />
+                  Procedimentos e Valores
+                </CardTitle>
+              </CardHeader>
+              <CardContent className="space-y-3">
+                <div className="grid grid-cols-1 md:grid-cols-5 gap-2">
+                  <Input
+                    className="md:col-span-2"
+                    value={newProcedure.name}
+                    onChange={(event) =>
+                      setNewProcedure((current) => ({
+                        ...current,
+                        name: event.target.value,
+                      }))
+                    }
+                    placeholder="Nome do procedimento"
+                  />
+                  <Select
+                    value={newProcedure.category}
+                    onValueChange={(value) =>
+                      setNewProcedure((current) => ({
+                        ...current,
+                        category: value as ProcedureCategory,
+                      }))
+                    }
+                  >
+                    <SelectTrigger>
+                      <SelectValue />
+                    </SelectTrigger>
+                    <SelectContent>
+                      {categories.map((category) => (
+                        <SelectItem key={category} value={category}>
+                          {categoryLabels[category]}
+                        </SelectItem>
+                      ))}
+                    </SelectContent>
+                  </Select>
+                  <Input
+                    type="number"
+                    min={0}
+                    step="0.01"
+                    value={newProcedure.price}
+                    onChange={(event) =>
+                      setNewProcedure((current) => ({
+                        ...current,
+                        price: event.target.value,
+                      }))
+                    }
+                    placeholder="PreÃ§o"
+                  />
+                  <Input
+                    type="number"
+                    min={5}
+                    value={newProcedure.duration}
+                    onChange={(event) =>
+                      setNewProcedure((current) => ({
+                        ...current,
+                        duration: event.target.value,
+                      }))
+                    }
+                    placeholder="DuraÃ§Ã£o"
+                  />
+                </div>
+                <Button variant="outline" className="gap-2" onClick={() => void createProcedureFromSettings()}>
+                  <Plus className="h-4 w-4" />
+                  Adicionar Procedimento
+                </Button>
+                <Separator />
+                <div className="space-y-2">
+                  {procedures.map((procedure) => (
+                    <div
+                      key={procedure.id}
+                      className="flex flex-col sm:flex-row sm:items-center sm:justify-between rounded-lg border border-neutral-100 px-3 py-2 gap-2"
+                    >
+                      <div>
+                        <p className="text-sm font-medium text-neutral-900">{procedure.name}</p>
+                        <p className="text-xs text-neutral-500">
+                          {categoryLabels[procedure.category]} â€¢{" "}
+                          {formatCurrency(procedure.price)} â€¢ {procedure.duration} min
+                        </p>
+                      </div>
+                      <div className="flex items-center gap-2">
+                        <button
+                          className={`relative inline-flex h-5 w-9 items-center rounded-full transition-colors ${
+                            procedure.active ? "bg-neutral-900" : "bg-neutral-200"
+                          }`}
+                          onClick={() =>
+                            void toggleProcedureStatus(procedure.id, procedure.active)
+                          }
+                        >
+                          <span
+                            className={`inline-block h-3.5 w-3.5 transform rounded-full bg-white transition-transform ${
+                              procedure.active ? "translate-x-4" : "translate-x-0.5"
+                            }`}
+                          />
+                        </button>
+                        <Button
+                          variant="outline"
+                          size="icon-sm"
+                          className="text-red-600 border-red-200 hover:bg-red-50"
+                          onClick={() => void deleteProcedureFromSettings(procedure.id)}
+                        >
+                          <Trash2 className="h-4 w-4" />
+                        </Button>
+                      </div>
+                    </div>
+                  ))}
+                </div>
+              </CardContent>
+            </Card>
+          </>
+        )}
       </div>
     </PageTransition>
   );
 }
+

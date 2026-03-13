@@ -8,7 +8,7 @@ export class FinanceiroUseCases {
   async criarPagamento(user: UserContext, dto: CreatePagamentoDTO) {
     const pagamento = new Pagamento({
       id: dto.id ?? crypto.randomUUID(),
-      organizationId: dto.organizationId,
+      organizationId: user.organizationId,
       pacienteId: dto.pacienteId,
       valor: dto.valor,
       status: dto.status,

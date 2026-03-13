@@ -19,7 +19,10 @@ export class PrismaAgendaRepository implements IAgendaRepository {
       id: found.id,
       organizationId: found.organizationId,
       dentistaId: found.dentistaId,
-      consultas: found.consultas,
+      consultas: found.consultas.map((consulta) => ({
+        ...consulta,
+        observacoes: consulta.observacoes ?? undefined,
+      })),
     };
   }
 
@@ -36,7 +39,10 @@ export class PrismaAgendaRepository implements IAgendaRepository {
       },
     });
 
-    return created;
+    return {
+      ...created,
+      observacoes: created.observacoes ?? undefined,
+    };
   }
 
   async listConsultasByOrganization(organizationId: string): Promise<Consulta[]> {
@@ -45,6 +51,9 @@ export class PrismaAgendaRepository implements IAgendaRepository {
       orderBy: { dataHora: 'asc' },
     });
 
-    return records;
+    return records.map((consulta) => ({
+      ...consulta,
+      observacoes: consulta.observacoes ?? undefined,
+    }));
   }
 }

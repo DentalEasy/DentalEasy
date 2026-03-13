@@ -1,12 +1,28 @@
 "use client";
 
-import { createContext, useContext, useState, useCallback, type ReactNode } from "react";
+import {
+  createContext,
+  useCallback,
+  useContext,
+  useEffect,
+  useMemo,
+  useState,
+  type ReactNode,
+} from "react";
+import {
+  deleteNotification as deleteNotificationApi,
+  listNotifications,
+  markAllNotificationsAsRead,
+  markNotificationAsRead,
+} from "@/lib/api";
+import type { AppNotification } from "@/types";
 
-// ===========================
-// Notification Center Context
-// ===========================
-
-export type NotificationType = "appointment" | "payment" | "stock" | "treatment" | "system";
+export type NotificationType =
+  | "appointment"
+  | "payment"
+  | "stock"
+  | "treatment"
+  | "system";
 
 export interface Notification {
   id: string;
@@ -20,101 +36,121 @@ export interface Notification {
 interface NotificationContextValue {
   notifications: Notification[];
   unreadCount: number;
-  markAsRead: (id: string) => void;
-  markAllAsRead: () => void;
-  removeNotification: (id: string) => void;
+  refreshNotifications: () => Promise<void>;
+  markAsRead: (id: string) => Promise<void>;
+  markAllAsRead: () => Promise<void>;
+  removeNotification: (id: string) => Promise<void>;
 }
 
 const NotificationContext = createContext<NotificationContextValue | null>(null);
 
-// ─── Mock notifications ───
-const initialNotifications: Notification[] = [
-  {
-    id: "n1",
-    type: "appointment",
-    title: "Consulta em 30 minutos",
-    description: "Maria Silva — Limpeza Profilática às 09:00",
-    time: "Agora",
-    read: false,
-  },
-  {
-    id: "n2",
-    type: "payment",
-    title: "Pagamento vencido",
-    description: "Ana Costa — Coroa Cerâmica (R$ 2.800,00) venceu em 01/02",
-    time: "2h atrás",
-    read: false,
-  },
-  {
-    id: "n3",
-    type: "stock",
-    title: "Estoque baixo",
-    description: "Luvas de Procedimento — apenas 3 unidades restantes",
-    time: "3h atrás",
-    read: false,
-  },
-  {
-    id: "n4",
-    type: "treatment",
-    title: "Plano de tratamento pendente",
-    description: "João Oliveira — Tratamento Endodôntico aguardando aprovação",
-    time: "5h atrás",
-    read: false,
-  },
-  {
-    id: "n5",
-    type: "appointment",
-    title: "Consulta confirmada",
-    description: "Carlos Ferreira confirmou consulta para 15/03 às 15:00",
-    time: "1 dia atrás",
-    read: true,
-  },
-  {
-    id: "n6",
-    type: "system",
-    title: "Backup realizado",
-    description: "Backup automático dos dados concluído com sucesso",
-    time: "1 dia atrás",
-    read: true,
-  },
-  {
-    id: "n7",
-    type: "payment",
-    title: "Pagamento recebido",
-    description: "Maria Silva — PIX de R$ 250,00 confirmado",
-    time: "2 dias atrás",
-    read: true,
-  },
-];
+const mapType = (type: AppNotification["type"]): NotificationType => {
+  if (type === "APPOINTMENT") return "appointment";
+  if (type === "PAYMENT") return "payment";
+  if (type === "INVENTORY") return "stock";
+  if (type === "TREATMENT") return "treatment";
+  return "system";
+};
+
+const formatRelative = (isoDate: string): string => {
+  const date = new Date(isoDate);
+  const now = new Date();
+  const diffMs = now.getTime() - date.getTime();
+  const diffMinutes = Math.floor(diffMs / 60000);
+  if (diffMinutes < 1) return "Agora";
+  if (diffMinutes < 60) return `${diffMinutes} min atrás`;
+  const diffHours = Math.floor(diffMinutes / 60);
+  if (diffHours < 24) return `${diffHours}h atrás`;
+  const diffDays = Math.floor(diffHours / 24);
+  if (diffDays < 7) return `${diffDays} dia${diffDays > 1 ? "s" : ""} atrás`;
+  return date.toLocaleDateString("pt-BR");
+};
+
+const mapNotification = (notification: AppNotification): Notification => ({
+  id: notification.id,
+  type: mapType(notification.type),
+  title: notification.title,
+  description: notification.message,
+  time: formatRelative(notification.createdAt),
+  read: notification.read,
+});
 
 export function NotificationProvider({ children }: { children: ReactNode }) {
-  const [notifications, setNotifications] = useState<Notification[]>(initialNotifications);
+  const [notifications, setNotifications] = useState<Notification[]>([]);
 
-  const unreadCount = notifications.filter((n) => !n.read).length;
+  const refreshNotifications = useCallback(async () => {
+    try {
+      const data = await listNotifications();
+      setNotifications(data.map((notification) => mapNotification(notification)));
+    } catch {
+      setNotifications([]);
+    }
+  }, []);
 
-  const markAsRead = useCallback((id: string) => {
-    setNotifications((prev) =>
-      prev.map((n) => (n.id === id ? { ...n, read: true } : n))
+  useEffect(() => {
+    void refreshNotifications();
+  }, [refreshNotifications]);
+
+  const unreadCount = useMemo(
+    () => notifications.filter((notification) => !notification.read).length,
+    [notifications]
+  );
+
+  const markAsRead = useCallback(async (id: string) => {
+    setNotifications((current) =>
+      current.map((notification) =>
+        notification.id === id ? { ...notification, read: true } : notification
+      )
     );
-  }, []);
+    try {
+      await markNotificationAsRead(id);
+    } catch {
+      await refreshNotifications();
+    }
+  }, [refreshNotifications]);
 
-  const markAllAsRead = useCallback(() => {
-    setNotifications((prev) => prev.map((n) => ({ ...n, read: true })));
-  }, []);
+  const markAllAsRead = useCallback(async () => {
+    setNotifications((current) =>
+      current.map((notification) => ({ ...notification, read: true }))
+    );
+    try {
+      await markAllNotificationsAsRead();
+    } catch {
+      await refreshNotifications();
+    }
+  }, [refreshNotifications]);
 
-  const removeNotification = useCallback((id: string) => {
-    setNotifications((prev) => prev.filter((n) => n.id !== id));
-  }, []);
+  const removeNotification = useCallback(async (id: string) => {
+    setNotifications((current) =>
+      current.filter((notification) => notification.id !== id)
+    );
+    try {
+      await deleteNotificationApi(id);
+    } catch {
+      await refreshNotifications();
+    }
+  }, [refreshNotifications]);
 
   return (
-    <NotificationContext.Provider value={{ notifications, unreadCount, markAsRead, markAllAsRead, removeNotification }}>
+    <NotificationContext.Provider
+      value={{
+        notifications,
+        unreadCount,
+        refreshNotifications,
+        markAsRead,
+        markAllAsRead,
+        removeNotification,
+      }}
+    >
       {children}
     </NotificationContext.Provider>
   );
 }
 
 export function useNotifications() {
-  const ctx = useContext(NotificationContext);
-  if (!ctx) throw new Error("useNotifications must be used within NotificationProvider");
-  return ctx;
+  const context = useContext(NotificationContext);
+  if (!context) {
+    throw new Error("useNotifications must be used within NotificationProvider");
+  }
+  return context;
 }

@@ -1,40 +1,59 @@
-"use client";
+﻿"use client";
 
 import { useForm, Controller } from "react-hook-form";
 import { zodResolver } from "@hookform/resolvers/zod";
 import { CalendarDays } from "lucide-react";
 import {
-  Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription, DialogFooter,
-  Button, Input,
-  Select, SelectTrigger, SelectValue, SelectContent, SelectItem,
+  Dialog,
+  DialogContent,
+  DialogHeader,
+  DialogTitle,
+  DialogDescription,
+  DialogFooter,
+  Button,
+  Input,
+  Select,
+  SelectTrigger,
+  SelectValue,
+  SelectContent,
+  SelectItem,
 } from "@/components/ui";
 import { FormField } from "@/components/ui/form-field";
 import { appointmentSchema, type AppointmentFormData } from "@/lib/schemas";
 
-// Mock data – replace with real queries
-const mockPatients = [
-  { id: "1", name: "Maria Silva" },
-  { id: "2", name: "João Santos" },
-  { id: "3", name: "Ana Oliveira" },
-];
-
-const mockDentists = [
-  { id: "1", name: "Dr. Lucas Mendes" },
-  { id: "2", name: "Dra. Camila Rocha" },
-];
+interface SelectOption {
+  id: string;
+  name: string;
+}
 
 const procedures = [
-  "Limpeza", "Restauração", "Extração", "Canal", "Clareamento",
-  "Implante", "Ortodontia", "Prótese", "Avaliação", "Outro",
+  "Limpeza",
+  "Restauracao",
+  "Extracao",
+  "Canal",
+  "Clareamento",
+  "Implante",
+  "Ortodontia",
+  "Protese",
+  "Avaliacao",
+  "Outro",
 ];
 
 interface NewAppointmentModalProps {
   open: boolean;
   onOpenChange: (open: boolean) => void;
-  onSubmit?: (data: AppointmentFormData) => void;
+  patients: SelectOption[];
+  dentists: SelectOption[];
+  onSubmit?: (data: AppointmentFormData) => Promise<void> | void;
 }
 
-export function NewAppointmentModal({ open, onOpenChange, onSubmit }: NewAppointmentModalProps) {
+export function NewAppointmentModal({
+  open,
+  onOpenChange,
+  patients,
+  dentists,
+  onSubmit,
+}: NewAppointmentModalProps) {
   const {
     register,
     handleSubmit,
@@ -46,10 +65,14 @@ export function NewAppointmentModal({ open, onOpenChange, onSubmit }: NewAppoint
     defaultValues: { sendWhatsApp: true },
   });
 
-  const handleFormSubmit = (data: AppointmentFormData) => {
-    onSubmit?.(data);
-    reset();
-    onOpenChange(false);
+  const handleFormSubmit = async (data: AppointmentFormData) => {
+    try {
+      await onSubmit?.(data);
+      reset();
+      onOpenChange(false);
+    } catch {
+      // parent handles error feedback
+    }
   };
 
   return (
@@ -77,8 +100,10 @@ export function NewAppointmentModal({ open, onOpenChange, onSubmit }: NewAppoint
                       <SelectValue placeholder="Selecione..." />
                     </SelectTrigger>
                     <SelectContent>
-                      {mockPatients.map((p) => (
-                        <SelectItem key={p.id} value={p.id}>{p.name}</SelectItem>
+                      {patients.map((p) => (
+                        <SelectItem key={p.id} value={p.id}>
+                          {p.name}
+                        </SelectItem>
                       ))}
                     </SelectContent>
                   </Select>
@@ -96,8 +121,10 @@ export function NewAppointmentModal({ open, onOpenChange, onSubmit }: NewAppoint
                       <SelectValue placeholder="Selecione..." />
                     </SelectTrigger>
                     <SelectContent>
-                      {mockDentists.map((d) => (
-                        <SelectItem key={d.id} value={d.id}>{d.name}</SelectItem>
+                      {dentists.map((d) => (
+                        <SelectItem key={d.id} value={d.id}>
+                          {d.name}
+                        </SelectItem>
                       ))}
                     </SelectContent>
                   </Select>
@@ -110,10 +137,10 @@ export function NewAppointmentModal({ open, onOpenChange, onSubmit }: NewAppoint
             <FormField label="Data" error={errors.date} required>
               <Input type="date" {...register("date")} />
             </FormField>
-            <FormField label="Início" error={errors.startTime} required>
+            <FormField label="Inicio" error={errors.startTime} required>
               <Input type="time" {...register("startTime")} />
             </FormField>
-            <FormField label="Término" error={errors.endTime} required>
+            <FormField label="Termino" error={errors.endTime} required>
               <Input type="time" {...register("endTime")} />
             </FormField>
           </div>
@@ -129,7 +156,9 @@ export function NewAppointmentModal({ open, onOpenChange, onSubmit }: NewAppoint
                   </SelectTrigger>
                   <SelectContent>
                     {procedures.map((p) => (
-                      <SelectItem key={p} value={p}>{p}</SelectItem>
+                      <SelectItem key={p} value={p}>
+                        {p}
+                      </SelectItem>
                     ))}
                   </SelectContent>
                 </Select>
@@ -137,7 +166,7 @@ export function NewAppointmentModal({ open, onOpenChange, onSubmit }: NewAppoint
             />
           </FormField>
 
-          <FormField label="Observações" error={errors.notes}>
+          <FormField label="Observacoes" error={errors.notes}>
             <Input placeholder="Notas adicionais..." {...register("notes")} />
           </FormField>
 

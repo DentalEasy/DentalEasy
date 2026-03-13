@@ -8,6 +8,7 @@ export class AgendamentoUseCases {
   criarConsulta(user: UserContext, dto: CreateConsultaDTO) {
     return this.agendamentoService.criarConsulta(user, {
       id: dto.id ?? crypto.randomUUID(),
+      organizationId: user.organizationId,
       ...dto,
     });
   }

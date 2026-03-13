@@ -71,7 +71,7 @@ export function NotificationCenter() {
             </div>
             {unreadCount > 0 && (
               <button
-                onClick={markAllAsRead}
+                onClick={() => void markAllAsRead()}
                 className="text-xs text-primary-500 hover:text-primary-600 font-medium cursor-pointer"
               >
                 Marcar todas como lidas
@@ -97,7 +97,7 @@ export function NotificationCenter() {
                       "flex items-start gap-3 px-4 py-3 border-b border-neutral-50 transition-colors hover:bg-neutral-50 cursor-pointer",
                       !notification.read && "bg-primary-50/40"
                     )}
-                    onClick={() => markAsRead(notification.id)}
+                    onClick={() => void markAsRead(notification.id)}
                   >
                     <div className={cn("h-8 w-8 rounded-lg flex items-center justify-center shrink-0 mt-0.5", config.bg)}>
                       <Icon className={cn("h-4 w-4", config.iconColor)} />
@@ -122,7 +122,7 @@ export function NotificationCenter() {
                     <button
                       onClick={(e) => {
                         e.stopPropagation();
-                        removeNotification(notification.id);
+                        void removeNotification(notification.id);
                       }}
                       className="h-6 w-6 flex items-center justify-center rounded-md text-neutral-400 hover:text-neutral-600 hover:bg-neutral-100 transition-colors shrink-0 cursor-pointer"
                     >

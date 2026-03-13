@@ -5,17 +5,27 @@ import {
   useContext,
   useState,
   useEffect,
+  useCallback,
   type ReactNode,
 } from "react";
-import type { User, Role } from "@/types";
+import type { User, Role, Organization } from "@/types";
+import {
+  authLogin,
+  authMe,
+  clearStoredToken,
+  getStoredToken,
+  setStoredToken,
+} from "@/lib/api";
 
 interface AuthContextType {
   user: User | null;
+  organization: Organization | null;
   role: Role | null;
   isAuthenticated: boolean;
   isLoading: boolean;
-  login: (user: User) => void;
+  login: (email: string, password: string) => Promise<void>;
   logout: () => void;
+  refreshSession: () => Promise<void>;
   hasRole: (roles: Role | Role[]) => boolean;
 }
 
@@ -23,29 +33,45 @@ const AuthContext = createContext<AuthContextType | undefined>(undefined);
 
 export function AuthProvider({ children }: { children: ReactNode }) {
   const [user, setUser] = useState<User | null>(null);
+  const [organization, setOrganization] = useState<Organization | null>(null);
   const [isLoading, setIsLoading] = useState(true);
 
-  // Rehydrate from localStorage on mount
-  useEffect(() => {
+  const refreshSession = useCallback(async () => {
     try {
-      const stored = localStorage.getItem("dental-saas-user");
-      if (stored) {
-        setUser(JSON.parse(stored));
+      const token = getStoredToken();
+      if (!token) {
+        setUser(null);
+        setOrganization(null);
+        return;
       }
+
+      const session = await authMe();
+      setUser(session.user);
+      setOrganization(session.organization);
     } catch {
-      // ignore parse errors
+      clearStoredToken();
+      setUser(null);
+      setOrganization(null);
+    } finally {
+      setIsLoading(false);
     }
-    setIsLoading(false);
   }, []);
 
-  const login = (userData: User) => {
-    setUser(userData);
-    localStorage.setItem("dental-saas-user", JSON.stringify(userData));
+  useEffect(() => {
+    void refreshSession();
+  }, [refreshSession]);
+
+  const login = async (email: string, password: string) => {
+    const session = await authLogin(email, password);
+    setStoredToken(session.token);
+    setUser(session.user);
+    setOrganization(session.organization);
   };
 
   const logout = () => {
+    clearStoredToken();
     setUser(null);
-    localStorage.removeItem("dental-saas-user");
+    setOrganization(null);
   };
 
   const hasRole = (roles: Role | Role[]): boolean => {
@@ -58,11 +84,13 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     <AuthContext.Provider
       value={{
         user,
+        organization,
         role: user?.role ?? null,
         isAuthenticated: !!user,
         isLoading,
         login,
         logout,
+        refreshSession,
         hasRole,
       }}
     >

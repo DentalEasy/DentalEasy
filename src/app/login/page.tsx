@@ -1,4 +1,4 @@
-"use client";
+﻿"use client";
 
 import { useState } from "react";
 import { useRouter } from "next/navigation";
@@ -14,65 +14,39 @@ import {
   UserCheck,
 } from "lucide-react";
 import { Card, CardContent, Button, Input } from "@/components/ui";
-import type { User, Role } from "@/types";
+import { ApiError, authLogin, setStoredToken } from "@/lib/api";
 
-// ─── Mock credentials ───
-interface MockCredential {
+interface QuickCredential {
   email: string;
   password: string;
-  user: User;
   label: string;
   description: string;
   icon: typeof Shield;
   color: string;
 }
 
-const MOCK_CREDENTIALS: MockCredential[] = [
+const QUICK_CREDENTIALS: QuickCredential[] = [
   {
     email: "admin@teste.com",
     password: "admin",
-    user: {
-      id: "user_admin",
-      name: "Dr. Lucas Mendes",
-      email: "admin@teste.com",
-      role: "ADMIN",
-      avatarUrl: undefined,
-      organizationId: "org_01",
-    },
     label: "Administrador",
-    description: "Acesso total: gestão, estoque, configurações, relatórios",
+    description: "Acesso total: gestao, estoque, configuracoes, relatorios",
     icon: Shield,
     color: "bg-red-50 text-red-600 border-red-200",
   },
   {
     email: "dentista@teste.com",
     password: "dentista",
-    user: {
-      id: "user_dentist",
-      name: "Dra. Camila Santos",
-      email: "dentista@teste.com",
-      role: "DENTIST",
-      avatarUrl: undefined,
-      organizationId: "org_01",
-    },
     label: "Dentista",
-    description: "Prontuário, receitas, agenda, relatórios",
+    description: "Prontuario, receitas, agenda, relatorios",
     icon: UserCheck,
     color: "bg-blue-50 text-blue-600 border-blue-200",
   },
   {
     email: "secretaria@teste.com",
     password: "secretaria",
-    user: {
-      id: "user_secretary",
-      name: "Ana Beatriz Lima",
-      email: "secretaria@teste.com",
-      role: "SECRETARY",
-      avatarUrl: undefined,
-      organizationId: "org_01",
-    },
-    label: "Secretária",
-    description: "Agenda, cadastro, financeiro básico",
+    label: "Secretaria",
+    description: "Agenda, cadastro, financeiro basico",
     icon: Users,
     color: "bg-green-50 text-green-600 border-green-200",
   },
@@ -86,60 +60,52 @@ export default function LoginPage() {
   const [error, setError] = useState("");
   const [isLoading, setIsLoading] = useState(false);
 
-  const handleLogin = async (e?: React.FormEvent) => {
-    e?.preventDefault();
-    setError("");
-
-    if (!email || !password) {
+  const doLogin = async (loginEmail: string, loginPassword: string) => {
+    if (!loginEmail || !loginPassword) {
       setError("Preencha e-mail e senha");
       return;
     }
 
     setIsLoading(true);
+    setError("");
 
-    // Simulate network delay
-    await new Promise((r) => setTimeout(r, 600));
-
-    const cred = MOCK_CREDENTIALS.find(
-      (c) => c.email === email.toLowerCase().trim() && c.password === password
-    );
-
-    if (!cred) {
-      setError("E-mail ou senha inválidos");
+    try {
+      const session = await authLogin(loginEmail.toLowerCase().trim(), loginPassword);
+      setStoredToken(session.token);
+      router.push("/dashboard");
+    } catch (err) {
+      const message =
+        err instanceof ApiError
+          ? err.message
+          : "Nao foi possivel entrar. Tente novamente.";
+      setError(message);
+    } finally {
       setIsLoading(false);
-      return;
     }
-
-    // Store user in localStorage so auth-context can pick it up
-    localStorage.setItem("dental-saas-user", JSON.stringify(cred.user));
-    router.push("/dashboard");
   };
 
-  const handleQuickLogin = async (cred: MockCredential) => {
+  const handleLogin = async (e?: React.FormEvent) => {
+    e?.preventDefault();
+    await doLogin(email, password);
+  };
+
+  const handleQuickLogin = async (cred: QuickCredential) => {
     setEmail(cred.email);
     setPassword(cred.password);
-    setError("");
-    setIsLoading(true);
-
-    await new Promise((r) => setTimeout(r, 400));
-
-    localStorage.setItem("dental-saas-user", JSON.stringify(cred.user));
-    router.push("/dashboard");
+    await doLogin(cred.email, cred.password);
   };
 
   return (
     <div className="min-h-screen bg-gradient-to-br from-neutral-50 via-white to-blue-50 flex items-center justify-center p-4">
       <div className="w-full max-w-[420px] space-y-6">
-        {/* Logo */}
         <div className="text-center">
           <div className="inline-flex items-center justify-center h-12 w-12 rounded-xl bg-primary-500 text-white mb-4">
             <Stethoscope className="h-6 w-6" />
           </div>
           <h1 className="text-xl font-bold text-neutral-900">DentalSaaS</h1>
-          <p className="text-sm text-neutral-400 mt-1">Sistema de Gestão Odontológica</p>
+          <p className="text-sm text-neutral-400 mt-1">Sistema de Gestao Odontologica</p>
         </div>
 
-        {/* Login Form */}
         <Card>
           <CardContent className="p-6">
             <form onSubmit={handleLogin} className="space-y-4">
@@ -151,7 +117,10 @@ export default function LoginPage() {
                     type="email"
                     placeholder="seu@email.com"
                     value={email}
-                    onChange={(e) => { setEmail(e.target.value); setError(""); }}
+                    onChange={(e) => {
+                      setEmail(e.target.value);
+                      setError("");
+                    }}
                     className="pl-9"
                     autoComplete="email"
                   />
@@ -164,9 +133,12 @@ export default function LoginPage() {
                   <Lock className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-neutral-400" />
                   <Input
                     type={showPassword ? "text" : "password"}
-                    placeholder="••••••"
+                    placeholder="******"
                     value={password}
-                    onChange={(e) => { setPassword(e.target.value); setError(""); }}
+                    onChange={(e) => {
+                      setPassword(e.target.value);
+                      setError("");
+                    }}
                     className="pl-9 pr-9"
                     autoComplete="current-password"
                   />
@@ -176,7 +148,11 @@ export default function LoginPage() {
                     onClick={() => setShowPassword(!showPassword)}
                     tabIndex={-1}
                   >
-                    {showPassword ? <EyeOff className="h-4 w-4" /> : <Eye className="h-4 w-4" />}
+                    {showPassword ? (
+                      <EyeOff className="h-4 w-4" />
+                    ) : (
+                      <Eye className="h-4 w-4" />
+                    )}
                   </button>
                 </div>
               </div>
@@ -185,11 +161,7 @@ export default function LoginPage() {
                 <p className="text-xs text-red-500 bg-red-50 rounded-md px-3 py-2">{error}</p>
               )}
 
-              <Button
-                type="submit"
-                className="w-full gap-2"
-                disabled={isLoading}
-              >
+              <Button type="submit" className="w-full gap-2" disabled={isLoading}>
                 {isLoading ? (
                   <div className="h-4 w-4 border-2 border-white/30 border-t-white rounded-full animate-spin" />
                 ) : (
@@ -201,21 +173,22 @@ export default function LoginPage() {
           </CardContent>
         </Card>
 
-        {/* Quick Access - Test Accounts */}
         <div>
           <div className="flex items-center gap-2 mb-3">
             <div className="h-px bg-neutral-200 flex-1" />
-            <span className="text-[11px] font-medium text-neutral-400 uppercase tracking-wider">Acesso rápido</span>
+            <span className="text-[11px] font-medium text-neutral-400 uppercase tracking-wider">
+              Acesso rapido
+            </span>
             <div className="h-px bg-neutral-200 flex-1" />
           </div>
 
           <div className="space-y-2">
-            {MOCK_CREDENTIALS.map((cred) => {
+            {QUICK_CREDENTIALS.map((cred) => {
               const Icon = cred.icon;
               return (
                 <button
                   key={cred.email}
-                  onClick={() => handleQuickLogin(cred)}
+                  onClick={() => void handleQuickLogin(cred)}
                   disabled={isLoading}
                   className={`w-full flex items-center gap-3 rounded-lg border p-3 text-left transition-all hover:shadow-sm cursor-pointer disabled:opacity-50 ${cred.color}`}
                 >
@@ -238,9 +211,8 @@ export default function LoginPage() {
           </div>
         </div>
 
-        {/* Footer */}
         <p className="text-center text-[11px] text-neutral-300">
-          Ambiente de demonstração · Dados fictícios
+          Ambiente de demonstracao - dados de desenvolvimento
         </p>
       </div>
     </div>

@@ -79,8 +79,8 @@ const navGroups: NavGroup[] = [
   {
     label: "Gestão",
     items: [
-      { title: "Relatórios", href: "/reports", icon: BarChart3, allowedRoles: ["ADMIN", "DENTIST"] },
-      { title: "Estoque", href: "/inventory", icon: Package, allowedRoles: ["ADMIN"] },
+      { title: "Relatórios", href: "/reports", icon: BarChart3, allowedRoles: ["ADMIN", "DENTIST", "SECRETARY"] },
+      { title: "Estoque", href: "/inventory", icon: Package, allowedRoles: ["ADMIN", "SECRETARY"] },
       { title: "Configurações", href: "/settings", icon: Settings, allowedRoles: ["ADMIN"] },
     ],
   },
@@ -273,3 +273,4 @@ export function Sidebar() {
     </TooltipProvider>
   );
 }
+

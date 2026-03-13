@@ -1,30 +1,53 @@
 import { NextFunction, Request, Response } from 'express';
+import { AuthenticationError, AuthorizationError } from '../../shared/errors';
+import { verifyAccessToken } from '../../shared/jwt';
 import { UserRole } from '../../shared/types';
 
-const allowedRoles: UserRole[] = ['ADMIN', 'SECRETARY', 'DENTIST'];
+const bearerPrefix = 'Bearer ';
 
 export const authMiddleware = (
   req: Request,
-  res: Response,
+  _res: Response,
   next: NextFunction,
 ): void => {
-  const userId = req.header('x-user-id');
-  const organizationId = req.header('x-organization-id');
-  const role = req.header('x-user-role') as UserRole | undefined;
+  try {
+    const authorization = req.header('authorization');
 
-  if (!userId || !organizationId || !role || !allowedRoles.includes(role)) {
-    res.status(401).json({
-      message:
-        'Credenciais invalidas. Informe x-user-id, x-organization-id e x-user-role.',
-    });
-    return;
+    if (!authorization || !authorization.startsWith(bearerPrefix)) {
+      throw new AuthenticationError(
+        'Token ausente. Informe o header Authorization: Bearer <token>.',
+      );
+    }
+
+    const token = authorization.slice(bearerPrefix.length).trim();
+    const payload = verifyAccessToken(token);
+
+    req.user = {
+      userId: payload.sub,
+      organizationId: payload.organizationId,
+      role: payload.role,
+    };
+
+    next();
+  } catch (error) {
+    next(error);
   }
-
-  req.user = {
-    userId,
-    organizationId,
-    role,
-  };
-
-  next();
 };
+
+export const authorizeRoles =
+  (allowedRoles: UserRole[]) =>
+  (req: Request, _res: Response, next: NextFunction): void => {
+    try {
+      if (!req.user) {
+        throw new AuthenticationError();
+      }
+
+      if (!allowedRoles.includes(req.user.role)) {
+        throw new AuthorizationError();
+      }
+
+      next();
+    } catch (error) {
+      next(error);
+    }
+  };

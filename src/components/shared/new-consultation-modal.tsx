@@ -1,35 +1,51 @@
-"use client";
+﻿"use client";
 
 import { useForm, Controller } from "react-hook-form";
 import { zodResolver } from "@hookform/resolvers/zod";
 import { ClipboardList } from "lucide-react";
 import {
-  Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription, DialogFooter,
-  Button, Input, Textarea,
-  Select, SelectTrigger, SelectValue, SelectContent, SelectItem,
+  Dialog,
+  DialogContent,
+  DialogHeader,
+  DialogTitle,
+  DialogDescription,
+  DialogFooter,
+  Button,
+  Input,
+  Textarea,
+  Select,
+  SelectTrigger,
+  SelectValue,
+  SelectContent,
+  SelectItem,
 } from "@/components/ui";
 import { FormField } from "@/components/ui/form-field";
 import { consultationSchema, type ConsultationFormData } from "@/lib/schemas";
 
-const mockPatients = [
-  { id: "1", name: "Maria Silva" },
-  { id: "2", name: "João Santos" },
-  { id: "3", name: "Ana Oliveira" },
-];
+interface SelectOption {
+  id: string;
+  name: string;
+}
 
 const consultationTypes = [
   { value: "PROCEDURE", label: "Procedimento" },
   { value: "ANAMNESIS", label: "Anamnese" },
-  { value: "NOTE", label: "Anotação" },
+  { value: "NOTE", label: "Anotacao" },
 ] as const;
 
 interface NewConsultationModalProps {
   open: boolean;
   onOpenChange: (open: boolean) => void;
-  onSubmit?: (data: ConsultationFormData) => void;
+  patients: SelectOption[];
+  onSubmit?: (data: ConsultationFormData) => Promise<void> | void;
 }
 
-export function NewConsultationModal({ open, onOpenChange, onSubmit }: NewConsultationModalProps) {
+export function NewConsultationModal({
+  open,
+  onOpenChange,
+  patients,
+  onSubmit,
+}: NewConsultationModalProps) {
   const {
     register,
     handleSubmit,
@@ -40,10 +56,14 @@ export function NewConsultationModal({ open, onOpenChange, onSubmit }: NewConsul
     resolver: zodResolver(consultationSchema),
   });
 
-  const handleFormSubmit = (data: ConsultationFormData) => {
-    onSubmit?.(data);
-    reset();
-    onOpenChange(false);
+  const handleFormSubmit = async (data: ConsultationFormData) => {
+    try {
+      await onSubmit?.(data);
+      reset();
+      onOpenChange(false);
+    } catch {
+      // parent handles error feedback
+    }
   };
 
   return (
@@ -52,10 +72,10 @@ export function NewConsultationModal({ open, onOpenChange, onSubmit }: NewConsul
         <DialogHeader>
           <DialogTitle className="flex items-center gap-2">
             <ClipboardList className="h-4 w-4 text-neutral-400" />
-            Novo Registro Clínico
+            Novo Registro Clinico
           </DialogTitle>
           <DialogDescription>
-            Adicione um registro ao prontuário do paciente.
+            Adicione um registro ao prontuario do paciente.
           </DialogDescription>
         </DialogHeader>
 
@@ -71,8 +91,10 @@ export function NewConsultationModal({ open, onOpenChange, onSubmit }: NewConsul
                       <SelectValue placeholder="Selecione..." />
                     </SelectTrigger>
                     <SelectContent>
-                      {mockPatients.map((p) => (
-                        <SelectItem key={p.id} value={p.id}>{p.name}</SelectItem>
+                      {patients.map((p) => (
+                        <SelectItem key={p.id} value={p.id}>
+                          {p.name}
+                        </SelectItem>
                       ))}
                     </SelectContent>
                   </Select>
@@ -91,7 +113,9 @@ export function NewConsultationModal({ open, onOpenChange, onSubmit }: NewConsul
                     </SelectTrigger>
                     <SelectContent>
                       {consultationTypes.map((t) => (
-                        <SelectItem key={t.value} value={t.value}>{t.label}</SelectItem>
+                        <SelectItem key={t.value} value={t.value}>
+                          {t.label}
+                        </SelectItem>
                       ))}
                     </SelectContent>
                   </Select>
@@ -100,13 +124,13 @@ export function NewConsultationModal({ open, onOpenChange, onSubmit }: NewConsul
             </FormField>
           </div>
 
-          <FormField label="Título" error={errors.title} required>
-            <Input placeholder="Ex: Restauração Molar 36" {...register("title")} />
+          <FormField label="Titulo" error={errors.title} required>
+            <Input placeholder="Ex: Restauracao Molar 36" {...register("title")} />
           </FormField>
 
-          <FormField label="Descrição detalhada" error={errors.description} required>
+          <FormField label="Descricao detalhada" error={errors.description} required>
             <Textarea
-              placeholder="Descreva o procedimento, observações clínicas, anamnese..."
+              placeholder="Descreva o procedimento, observacoes clinicas, anamnese..."
               rows={5}
               {...register("description")}
             />

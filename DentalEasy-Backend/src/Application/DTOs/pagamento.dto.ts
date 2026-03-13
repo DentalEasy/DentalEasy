@@ -2,7 +2,6 @@ import { z } from 'zod';
 
 export const createPagamentoSchema = z.object({
   id: z.string().uuid().optional(),
-  organizationId: z.string().uuid(),
   pacienteId: z.string().uuid(),
   valor: z.number().positive(),
   status: z.enum(['PENDENTE', 'PAGO', 'CANCELADO']).default('PENDENTE'),

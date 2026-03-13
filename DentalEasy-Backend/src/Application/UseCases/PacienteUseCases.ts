@@ -6,7 +6,10 @@ export class PacienteUseCases {
   constructor(private readonly pacienteService: PacienteService) {}
 
   criarPaciente(user: UserContext, dto: CreatePacienteDTO) {
-    return this.pacienteService.criar(user, dto);
+    return this.pacienteService.criar(user, {
+      organizationId: user.organizationId,
+      ...dto,
+    });
   }
 
   listarPacientes(user: UserContext) {

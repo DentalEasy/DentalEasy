@@ -10,6 +10,15 @@ datasource db {
 model Organization {
   id        String   @id @default(uuid())
   nome      String
+  slug      String   @unique
+  logoUrl   String?
+  email     String?
+  phone     String?
+  address   String?
+  city      String?
+  state     String?
+  cnpj      String?
+  plan      Plan     @default(PRO)
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
 
@@ -21,6 +30,17 @@ model Organization {
   agendas     Agenda[]
   dentistas   Dentista[]
   receitas    Receita[]
+  appointments  Appointment[]
+  medicalRecords MedicalRecord[]
+  prescriptions Prescription[]
+  financialRecords FinancialRecord[]
+  payments Payment[]
+  procedures Procedure[]
+  treatmentPlans TreatmentPlan[]
+  inventoryItems InventoryItem[]
+  inventoryMovements InventoryMovement[]
+  appNotifications AppNotification[]
+  notificationPreferences NotificationPreference[]
 }
 
 model User {
@@ -28,11 +48,20 @@ model User {
   organizationId String
   name           String
   email          String       @unique
+  passwordHash   String
+  avatarUrl      String?
   role           UserRole
+  active         Boolean      @default(true)
   createdAt      DateTime     @default(now())
   updatedAt      DateTime     @updatedAt
 
-  organization Organization @relation(fields: [organizationId], references: [id], onDelete: Cascade)
+  organization           Organization    @relation(fields: [organizationId], references: [id], onDelete: Cascade)
+  appointmentsAsDentist  Appointment[]   @relation("AppointmentDentist")
+  medicalRecordsAsDentist MedicalRecord[] @relation("MedicalRecordDentist")
+  prescriptionsAsDentist Prescription[]  @relation("PrescriptionDentist")
+  createdPayments Payment[] @relation("PaymentCreatedBy")
+  treatmentPlansCreated TreatmentPlan[] @relation("TreatmentPlanCreatedBy")
+  notifications AppNotification[]
 
   @@index([organizationId])
 }
@@ -46,6 +75,11 @@ model Paciente {
   email          String?
   telefone       String
   endereco       String?
+  avatarUrl      String?
+  serasaStatus   SerasaStatus @default(GREEN)
+  alergias       String?
+  observacoesMedicas String?
+  active         Boolean @default(true)
   createdAt      DateTime @default(now())
   updatedAt      DateTime @updatedAt
 
@@ -54,9 +88,15 @@ model Paciente {
   pagamentos   Pagamento[]
   consultas    Consulta[]
   receitas     Receita[]
+  appointments Appointment[]
+  medicalRecords MedicalRecord[]
+  prescriptions Prescription[]
+  financialRecords FinancialRecord[]
+  treatmentPlans TreatmentPlan[]
 
   @@unique([organizationId, cpf])
   @@index([organizationId])
+  @@index([organizationId, active])
 }
 
 model Prontuario {
@@ -192,6 +232,276 @@ model Receita {
   @@index([organizationId])
 }
 
+model Appointment {
+  id             String            @id @default(uuid())
+  organizationId String
+  patientId      String
+  dentistUserId  String
+  title          String?
+  procedure      String?
+  notes          String?
+  date           DateTime
+  startTime      String
+  endTime        String
+  status         AppointmentStatus @default(PENDING)
+  reminderSent   Boolean           @default(false)
+  createdAt      DateTime          @default(now())
+  updatedAt      DateTime          @updatedAt
+
+  organization Organization @relation(fields: [organizationId], references: [id], onDelete: Cascade)
+  patient      Paciente     @relation(fields: [patientId], references: [id], onDelete: Cascade)
+  dentist      User         @relation("AppointmentDentist", fields: [dentistUserId], references: [id], onDelete: Restrict)
+
+  @@index([organizationId])
+  @@index([organizationId, date])
+  @@index([organizationId, patientId, date])
+  @@index([organizationId, dentistUserId, date])
+}
+
+model MedicalRecord {
+  id             String            @id @default(uuid())
+  organizationId String
+  patientId      String
+  dentistUserId  String
+  type           MedicalRecordType
+  title          String
+  description    String
+  attachments    Json?
+  createdAt      DateTime          @default(now())
+  updatedAt      DateTime          @updatedAt
+
+  organization Organization @relation(fields: [organizationId], references: [id], onDelete: Cascade)
+  patient      Paciente     @relation(fields: [patientId], references: [id], onDelete: Cascade)
+  dentist      User         @relation("MedicalRecordDentist", fields: [dentistUserId], references: [id], onDelete: Restrict)
+
+  @@index([organizationId])
+  @@index([organizationId, patientId, createdAt])
+  @@index([organizationId, dentistUserId, createdAt])
+}
+
+model Prescription {
+  id             String   @id @default(uuid())
+  organizationId String
+  patientId      String
+  dentistUserId  String
+  content        String
+  createdAt      DateTime @default(now())
+  updatedAt      DateTime @updatedAt
+
+  organization Organization @relation(fields: [organizationId], references: [id], onDelete: Cascade)
+  patient      Paciente     @relation(fields: [patientId], references: [id], onDelete: Cascade)
+  dentist      User         @relation("PrescriptionDentist", fields: [dentistUserId], references: [id], onDelete: Restrict)
+
+  @@index([organizationId])
+  @@index([organizationId, patientId, createdAt])
+  @@index([organizationId, dentistUserId, createdAt])
+}
+
+model FinancialRecord {
+  id                String                @id @default(uuid())
+  organizationId    String
+  patientId         String?
+  description       String
+  amount            Decimal               @db.Decimal(10, 2)
+  type              FinancialRecordType
+  category          String?
+  paymentStatus     FinancialPaymentStatus @default(PENDING)
+  paymentMethod     FinancialPaymentMethod?
+  dueDate           DateTime
+  paidAt            DateTime?
+  notes             String?
+  invoiceNumber     String?
+  fiscalDocumentRef String?
+  nfeStatus         FiscalStatus?
+  createdAt         DateTime              @default(now())
+  updatedAt         DateTime              @updatedAt
+
+  organization Organization @relation(fields: [organizationId], references: [id], onDelete: Cascade)
+  patient      Paciente?    @relation(fields: [patientId], references: [id], onDelete: SetNull)
+  payments     Payment[]
+
+  @@index([organizationId])
+  @@index([organizationId, type])
+  @@index([organizationId, paymentStatus])
+  @@index([organizationId, dueDate])
+  @@index([organizationId, patientId])
+}
+
+model Payment {
+  id                String                @id @default(uuid())
+  organizationId    String
+  financialRecordId String
+  amount            Decimal               @db.Decimal(10, 2)
+  method            FinancialPaymentMethod
+  status            PaymentStatus         @default(PENDING)
+  paidAt            DateTime?
+  receivedFrom      String?
+  paidTo            String?
+  notes             String?
+  installmentNumber Int?
+  totalInstallments Int?
+  receiptNumber     String?
+  createdByUserId   String?
+  createdAt         DateTime              @default(now())
+  updatedAt         DateTime              @updatedAt
+
+  organization   Organization   @relation(fields: [organizationId], references: [id], onDelete: Cascade)
+  financialRecord FinancialRecord @relation(fields: [financialRecordId], references: [id], onDelete: Cascade)
+  createdBy      User?          @relation("PaymentCreatedBy", fields: [createdByUserId], references: [id], onDelete: SetNull)
+
+  @@index([organizationId])
+  @@index([organizationId, financialRecordId])
+  @@index([organizationId, status])
+  @@index([organizationId, paidAt])
+  @@index([organizationId, receiptNumber])
+}
+
+model Procedure {
+  id              String   @id @default(uuid())
+  organizationId  String
+  name            String
+  description     String?
+  category        String?
+  price           Decimal  @db.Decimal(10, 2)
+  durationMinutes Int
+  active          Boolean  @default(true)
+  createdAt       DateTime @default(now())
+  updatedAt       DateTime @updatedAt
+
+  organization      Organization        @relation(fields: [organizationId], references: [id], onDelete: Cascade)
+  treatmentPlanItems TreatmentPlanItem[]
+
+  @@index([organizationId])
+  @@index([organizationId, active])
+  @@index([organizationId, category])
+}
+
+model TreatmentPlan {
+  id              String              @id @default(uuid())
+  organizationId  String
+  patientId       String
+  createdByUserId String?
+  title           String
+  status          TreatmentPlanStatus @default(DRAFT)
+  discount        Decimal?            @db.Decimal(10, 2)
+  totalAmount     Decimal             @db.Decimal(10, 2)
+  notes           String?
+  installments    Int?
+  createdAt       DateTime            @default(now())
+  updatedAt       DateTime            @updatedAt
+
+  organization Organization @relation(fields: [organizationId], references: [id], onDelete: Cascade)
+  patient      Paciente     @relation(fields: [patientId], references: [id], onDelete: Cascade)
+  createdBy    User?        @relation("TreatmentPlanCreatedBy", fields: [createdByUserId], references: [id], onDelete: SetNull)
+  items        TreatmentPlanItem[]
+
+  @@index([organizationId])
+  @@index([organizationId, patientId])
+  @@index([organizationId, status])
+  @@index([organizationId, createdAt])
+}
+
+model TreatmentPlanItem {
+  id              String   @id @default(uuid())
+  treatmentPlanId String
+  procedureId     String?
+  procedureName   String
+  category        String?
+  tooth           String?
+  quantity        Int
+  unitPrice       Decimal  @db.Decimal(10, 2)
+  totalPrice      Decimal  @db.Decimal(10, 2)
+  notes           String?
+  createdAt       DateTime @default(now())
+  updatedAt       DateTime @updatedAt
+
+  treatmentPlan TreatmentPlan @relation(fields: [treatmentPlanId], references: [id], onDelete: Cascade)
+  procedure     Procedure?    @relation(fields: [procedureId], references: [id], onDelete: SetNull)
+
+  @@index([treatmentPlanId])
+  @@index([procedureId])
+}
+
+model InventoryItem {
+  id             String   @id @default(uuid())
+  organizationId String
+  name           String
+  sku            String?
+  category       String
+  unit           String
+  currentStock   Decimal  @db.Decimal(10, 2)
+  minStock       Decimal  @db.Decimal(10, 2)
+  cost           Decimal  @db.Decimal(10, 2)
+  supplier       String?
+  active         Boolean  @default(true)
+  createdAt      DateTime @default(now())
+  updatedAt      DateTime @updatedAt
+
+  organization Organization       @relation(fields: [organizationId], references: [id], onDelete: Cascade)
+  movements    InventoryMovement[]
+
+  @@index([organizationId])
+  @@index([organizationId, active])
+  @@index([organizationId, category])
+  @@index([organizationId, currentStock])
+}
+
+model InventoryMovement {
+  id              String              @id @default(uuid())
+  organizationId  String
+  inventoryItemId String
+  type            InventoryMovementType @default(RESTOCK)
+  quantity        Decimal             @db.Decimal(10, 2)
+  cost            Decimal?            @db.Decimal(10, 2)
+  notes           String?
+  date            DateTime            @default(now())
+  createdAt       DateTime            @default(now())
+
+  organization Organization @relation(fields: [organizationId], references: [id], onDelete: Cascade)
+  inventoryItem InventoryItem @relation(fields: [inventoryItemId], references: [id], onDelete: Cascade)
+
+  @@index([organizationId])
+  @@index([organizationId, inventoryItemId, date])
+}
+
+model AppNotification {
+  id             String           @id @default(uuid())
+  organizationId String
+  userId         String?
+  title          String
+  message        String
+  type           NotificationType
+  read           Boolean          @default(false)
+  link           String?
+  metadata       Json?
+  eventKey       String
+  createdAt      DateTime         @default(now())
+  updatedAt      DateTime         @updatedAt
+
+  organization Organization @relation(fields: [organizationId], references: [id], onDelete: Cascade)
+  user         User?        @relation(fields: [userId], references: [id], onDelete: SetNull)
+
+  @@unique([organizationId, eventKey])
+  @@index([organizationId])
+  @@index([organizationId, userId])
+  @@index([organizationId, read, createdAt])
+}
+
+model NotificationPreference {
+  id                   String   @id @default(uuid())
+  organizationId       String
+  appointmentReminders Boolean  @default(true)
+  paymentAlerts        Boolean  @default(true)
+  inventoryAlerts      Boolean  @default(true)
+  systemAlerts         Boolean  @default(true)
+  createdAt            DateTime @default(now())
+  updatedAt            DateTime @updatedAt
+
+  organization Organization @relation(fields: [organizationId], references: [id], onDelete: Cascade)
+
+  @@unique([organizationId])
+}
+
 enum UserRole {
   ADMIN
   SECRETARY
@@ -202,4 +512,85 @@ enum PagamentoStatus {
   PENDENTE
   PAGO
   CANCELADO
+}
+
+enum Plan {
+  FREE
+  PRO
+  ENTERPRISE
+}
+
+enum SerasaStatus {
+  GREEN
+  YELLOW
+  RED
+}
+
+enum AppointmentStatus {
+  CONFIRMED
+  PENDING
+  CANCELLED
+  COMPLETED
+}
+
+enum MedicalRecordType {
+  PROCEDURE
+  ANAMNESIS
+  PHOTO
+  NOTE
+}
+
+enum FinancialRecordType {
+  INCOME
+  EXPENSE
+}
+
+enum FinancialPaymentStatus {
+  PAID
+  PENDING
+  OVERDUE
+  CANCELLED
+}
+
+enum FinancialPaymentMethod {
+  PIX
+  CREDIT_CARD
+  DEBIT_CARD
+  CASH
+  BOLETO
+}
+
+enum FiscalStatus {
+  ISSUED
+  PENDING
+  ERROR
+}
+
+enum PaymentStatus {
+  PENDING
+  SETTLED
+  CANCELLED
+}
+
+enum TreatmentPlanStatus {
+  DRAFT
+  SENT
+  APPROVED
+  IN_PROGRESS
+  COMPLETED
+  CANCELED
+  REJECTED
+}
+
+enum InventoryMovementType {
+  RESTOCK
+  ADJUSTMENT
+}
+
+enum NotificationType {
+  APPOINTMENT
+  PAYMENT
+  INVENTORY
+  SYSTEM
+  TREATMENT
 }

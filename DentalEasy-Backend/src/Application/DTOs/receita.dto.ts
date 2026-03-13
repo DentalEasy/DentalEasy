@@ -2,7 +2,6 @@ import { z } from 'zod';
 
 export const createReceitaSchema = z.object({
   id: z.string().uuid().optional(),
-  organizationId: z.string().uuid(),
   dentistaId: z.string().uuid(),
   pacienteId: z.string().uuid(),
   conteudo: z.string().min(3),

@@ -13,7 +13,7 @@ import { patientSchema, type PatientFormData } from "@/lib/schemas";
 interface NewPatientModalProps {
   open: boolean;
   onOpenChange: (open: boolean) => void;
-  onSubmit?: (data: PatientFormData) => void;
+  onSubmit?: (data: PatientFormData) => Promise<void> | void;
 }
 
 export function NewPatientModal({ open, onOpenChange, onSubmit }: NewPatientModalProps) {
@@ -26,10 +26,14 @@ export function NewPatientModal({ open, onOpenChange, onSubmit }: NewPatientModa
     resolver: zodResolver(patientSchema),
   });
 
-  const handleFormSubmit = (data: PatientFormData) => {
-    onSubmit?.(data);
-    reset();
-    onOpenChange(false);
+  const handleFormSubmit = async (data: PatientFormData) => {
+    try {
+      await onSubmit?.(data);
+      reset();
+      onOpenChange(false);
+    } catch {
+      // parent handles error feedback
+    }
   };
 
   return (

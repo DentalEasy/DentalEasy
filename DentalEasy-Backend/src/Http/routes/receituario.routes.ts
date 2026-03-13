@@ -1,11 +1,12 @@
 import { Router } from 'express';
 import { createReceitaSchema } from '../../Application/DTOs';
 import { container } from '../../container';
+import { authorizeRoles } from '../middlewares/auth.middleware';
 import { getUserContext } from '../utils/user-context';
 
 const router = Router();
 
-router.get('/receitas', async (req, res, next) => {
+router.get('/receitas', authorizeRoles(['DENTIST']), async (req, res, next) => {
   try {
     const user = getUserContext(req);
     const data = await container.receituarioUseCases.listarReceitas(user);
@@ -15,7 +16,7 @@ router.get('/receitas', async (req, res, next) => {
   }
 });
 
-router.post('/receitas', async (req, res, next) => {
+router.post('/receitas', authorizeRoles(['DENTIST']), async (req, res, next) => {
   try {
     const user = getUserContext(req);
     const payload = createReceitaSchema.parse(req.body);

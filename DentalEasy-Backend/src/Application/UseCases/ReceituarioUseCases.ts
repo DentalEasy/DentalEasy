@@ -8,7 +8,7 @@ export class ReceituarioUseCases {
   criarReceita(user: UserContext, dto: CreateReceitaDTO) {
     return this.receituarioService.criarReceita(user, {
       id: dto.id ?? crypto.randomUUID(),
-      organizationId: dto.organizationId,
+      organizationId: user.organizationId,
       dentistaId: dto.dentistaId,
       pacienteId: dto.pacienteId,
       conteudo: dto.conteudo,

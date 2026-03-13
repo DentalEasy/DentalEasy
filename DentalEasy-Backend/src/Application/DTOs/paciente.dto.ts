@@ -1,7 +1,6 @@
 import { z } from 'zod';
 
 export const createPacienteSchema = z.object({
-  organizationId: z.string().uuid(),
   nome: z.string().min(2),
   cpf: z.string().min(11).max(14),
   dataNascimento: z.coerce.date(),
