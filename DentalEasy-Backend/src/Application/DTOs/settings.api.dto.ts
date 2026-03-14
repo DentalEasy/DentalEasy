@@ -1,4 +1,5 @@
 import { z } from 'zod';
+import { isStrongPassword } from '../../shared/password-policy';
 
 const optionalString = z
   .union([z.string(), z.null(), z.undefined()])
@@ -21,8 +22,8 @@ const optionalPassword = z
     const trimmed = value.trim();
     return trimmed.length > 0 ? trimmed : undefined;
   })
-  .refine((value) => value === undefined || value.length >= 6, {
-    message: 'Senha deve ter ao menos 6 caracteres.',
+  .refine((value) => value === undefined || isStrongPassword(value), {
+    message: 'Senha nao atende aos requisitos de seguranca.',
   });
 
 export const updateOrganizationSettingsSchema = z

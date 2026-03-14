@@ -1,51 +1,56 @@
-# DentalEasy - Entrega Final
+# DentalEasy
 
-Sistema de gestao odontologica com frontend Next.js e backend Node.js/Express, com autenticacao JWT, RBAC e isolamento multi-tenant por organizacao.
+Sistema de gestao odontologica com frontend Next.js e backend Node.js/Express, com autenticacao JWT, RBAC e isolamento por organizacao.
 
-## 1. Visao geral
+## Stack
 
-- Frontend: Next.js (App Router) + TypeScript + Tailwind + componentes UI locais
+- Frontend: Next.js (App Router) + TypeScript + Tailwind
 - Backend: Node.js + Express + TypeScript + Prisma
 - Banco: PostgreSQL
-- Autenticacao: JWT (`/api/auth/login`, `/api/auth/me`)
-- Autorizacao: RBAC (`ADMIN`, `SECRETARY`, `DENTIST`)
-- Tenant: todas as operacoes de negocio filtradas por `organizationId`
+- Auth: JWT (`/api/auth/login`, `/api/auth/me`)
 
-Contexto DDD de referencia:
-- [ddd_clinica_context.readme.md](/c:/Users/guilh/OneDrive/Documentos/DentalEasy/ddd_clinica_context.readme.md)
-- [DentalEasy-Backend/ddd_clinica_context.readme.md](/c:/Users/guilh/OneDrive/Documentos/DentalEasy/DentalEasy-Backend/ddd_clinica_context.readme.md)
-
-## 2. Estrutura do repositorio
+## Estrutura do repositorio
 
 - Frontend: `./src`
 - Backend: `./DentalEasy-Backend`
-- Auditoria tecnica historica: `./AUDITORIA_BACKEND_DENTALEASY.md`
-- Handoff tecnico final: `./docs/HANDOFF_TECNICO_DENTALEASY.md`
+- Documentacao tecnica: `./docs`
 
-## 3. Setup rapido (ordem correta)
+## Pre-requisitos locais
 
-### 3.1 Backend
+- Node.js 20+ (recomendado: 22.x)
+- npm
+- PostgreSQL ativo em `localhost:5432`
 
-```bash
+## Passo a passo (Windows PowerShell)
+
+### 1. Backend
+
+```powershell
 cd DentalEasy-Backend
 npm install
-```
-
-Copie o arquivo de ambiente:
-
-- Linux/macOS:
-```bash
-cp .env.example .env
-```
-
-- Windows PowerShell:
-```powershell
 Copy-Item .env.example .env
 ```
 
-Aplique migrations e seed:
+Edite o arquivo `.env` e ajuste ao menos:
 
-```bash
+- `DATABASE_URL` com usuario/senha corretos do seu PostgreSQL.
+- `JWT_SECRET` e `JWT_REFRESH_SECRET` (minimo 32 caracteres).
+
+Exemplo de `DATABASE_URL`:
+
+```env
+DATABASE_URL="postgresql://postgres:SUA_SENHA@localhost:5432/dentaleasy?schema=public"
+```
+
+Se o banco `dentaleasy` ainda nao existir, crie:
+
+```powershell
+& "C:\Program Files\PostgreSQL\17\bin\psql.exe" -h localhost -p 5432 -U postgres -d postgres -c "CREATE DATABASE dentaleasy;"
+```
+
+Rode Prisma:
+
+```powershell
 npm run prisma:generate
 npm run prisma:migrate
 npm run prisma:seed
@@ -53,82 +58,62 @@ npm run prisma:seed
 
 Suba a API:
 
-```bash
+```powershell
 npm run dev
 ```
 
-API/health:
-- `http://localhost:3001/health`
+Valide:
 
-### 3.2 Frontend
+- Health: `http://localhost:3001/health`
 
-Em outro terminal, na raiz:
+### 2. Frontend
 
-```bash
+Em outro terminal, na raiz do projeto:
+
+```powershell
 npm install
 ```
 
-Crie `.env.local`:
+Crie ou ajuste `.env.local` na raiz:
 
-```bash
+```env
 NEXT_PUBLIC_API_URL=http://localhost:3001/api
 ```
 
 Suba o frontend:
 
-```bash
+```powershell
 npm run dev
 ```
 
-UI:
-- `http://localhost:3000`
+Valide:
 
-## 4. Contas seed
+- UI: `http://localhost:3000`
 
-- `admin@teste.com` / `admin`
-- `dentista@teste.com` / `dentista`
-- `secretaria@teste.com` / `secretaria`
+## Credenciais seed (corretas)
 
-## 5. Modulos implementados
+- `admin@teste.com` / `Admin#Dental2026`
+- `dentista@teste.com` / `Dentista#Dental2026`
+- `secretaria@teste.com` / `Secretaria#Dental2026`
 
-- auth
-- patients
-- appointments
-- clinical-records
-- prescriptions
-- financial-records
-- payments
-- procedures
-- treatment-plans
-- inventory
-- notifications
-- settings
-- dashboard
-- reports
+Importante:
 
-## 6. Checklist final de validacao local
+- O frontend pode exibir credenciais antigas em atalhos de login rapido.
+- Se isso ocorrer, digite manualmente as credenciais acima.
 
-1. Banco PostgreSQL acessivel pelo `DATABASE_URL`
-2. `npm run prisma:migrate` executado no backend
-3. `npm run prisma:seed` executado no backend
-4. Backend inicia sem erro (`npm run dev` em `DentalEasy-Backend`)
-5. Frontend inicia sem erro (`npm run dev` na raiz)
-6. Login funciona para as 3 contas seed
-7. `GET /api/auth/me` retorna sessao valida com token
-8. Dashboard carrega dados reais
-9. Modulos principais executam CRUD/acoes esperadas
-10. RBAC coerente entre frontend e backend
-11. Isolamento multi-tenant por `organizationId` ativo nas consultas
+## Erros comuns e como resolver
 
-## 7. Limites conhecidos (nao bloqueantes para execucao local)
+- `Configuracao de ambiente invalida: DATABASE_URL: Required; JWT_SECRET: Required`
+  - Rode o backend dentro de `DentalEasy-Backend`.
+  - Garanta que `.env` existe e foi copiado de `.env.example`.
 
-- Integracoes externas reais (fiscal/whatsapp/serasa) nao estao integradas de ponta a ponta; ha comportamento simplificado para ambiente local.
-- Exportacao de relatorios no frontend esta sinalizada, sem pipeline completo de arquivo nesta entrega.
-- Upload de documentos clinicos direto no detalhe do paciente ainda nao foi expandido para fluxo dedicado de armazenamento.
-- Rotas legadas em portugues foram mantidas no backend por compatibilidade com etapas anteriores.
+- `P1000 Authentication failed`
+  - Usuario/senha do PostgreSQL na `DATABASE_URL` estao incorretos.
 
-## 8. Referencias de operacao
+- `P1003 The introspected database does not exist`
+  - O banco `dentaleasy` nao existe ainda. Crie o banco e rode migrate novamente.
 
-- Guia backend detalhado: [DentalEasy-Backend/README.md](/c:/Users/guilh/OneDrive/Documentos/DentalEasy/DentalEasy-Backend/README.md)
-- Handoff tecnico: [docs/HANDOFF_TECNICO_DENTALEASY.md](/c:/Users/guilh/OneDrive/Documentos/DentalEasy/docs/HANDOFF_TECNICO_DENTALEASY.md)
-- Resumo de entrega: [docs/ENTREGA_FINAL_DENTALEASY.md](/c:/Users/guilh/OneDrive/Documentos/DentalEasy/docs/ENTREGA_FINAL_DENTALEASY.md)
+## Referencias
+
+- Guia backend: [DentalEasy-Backend/README.md](DentalEasy-Backend/README.md)
+- Handoff tecnico: [docs/HANDOFF_TECNICO_DENTALEASY.md](docs/HANDOFF_TECNICO_DENTALEASY.md)

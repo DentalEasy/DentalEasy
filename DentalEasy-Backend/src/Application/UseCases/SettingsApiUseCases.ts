@@ -5,9 +5,11 @@ import {
   UpdateOrganizationSettingsDTO,
   UpdateTeamMemberDTO,
 } from '../DTOs';
+import { env } from '../../config/env';
 import { prisma } from '../../Infrastructure/Persistence';
 import { ensureRole } from '../../shared/access-control';
 import { NotFoundError, ValidationError } from '../../shared/errors';
+import { generateTemporaryPassword } from '../../shared/password-policy';
 import { UserContext } from '../../shared/types';
 
 export interface ApiOrganizationSettings {
@@ -180,8 +182,8 @@ export class SettingsApiUseCases {
       throw new ValidationError('Ja existe usuario com este e-mail.');
     }
 
-    const temporaryPassword = dto.password ?? this.generateTemporaryPassword();
-    const passwordHash = await bcrypt.hash(temporaryPassword, 10);
+    const temporaryPassword = dto.password ?? generateTemporaryPassword();
+    const passwordHash = await bcrypt.hash(temporaryPassword, env.BCRYPT_ROUNDS);
 
     const created = await prisma.user.create({
       data: {
@@ -238,7 +240,7 @@ export class SettingsApiUseCases {
         avatarUrl: dto.avatarUrl,
         active: dto.active,
         passwordHash: dto.password
-          ? await bcrypt.hash(dto.password, 10)
+          ? await bcrypt.hash(dto.password, env.BCRYPT_ROUNDS)
           : undefined,
       },
     });
@@ -317,9 +319,5 @@ export class SettingsApiUseCases {
         organizationId,
       },
     });
-  }
-
-  private generateTemporaryPassword(): string {
-    return `Tmp#${crypto.randomUUID().replace(/-/g, '').slice(0, 8)}`;
   }
 }

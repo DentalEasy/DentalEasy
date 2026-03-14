@@ -3,6 +3,11 @@ import { PrismaClient, UserRole } from '@prisma/client';
 import bcrypt from 'bcryptjs';
 
 const prisma = new PrismaClient();
+const parsedBcryptRounds = Number.parseInt(process.env.BCRYPT_ROUNDS ?? '12', 10);
+const bcryptRounds =
+  Number.isFinite(parsedBcryptRounds) && parsedBcryptRounds >= 10
+    ? parsedBcryptRounds
+    : 12;
 
 async function seed() {
   const organization = await prisma.organization.upsert({
@@ -31,21 +36,21 @@ async function seed() {
   const users = [
     {
       email: 'admin@teste.com',
-      password: 'admin',
+      password: 'Admin#Dental2026',
       name: 'Dr. Lucas Mendes',
       role: 'ADMIN' as UserRole,
       cro: null,
     },
     {
       email: 'dentista@teste.com',
-      password: 'dentista',
+      password: 'Dentista#Dental2026',
       name: 'Dra. Camila Santos',
       role: 'DENTIST' as UserRole,
       cro: 'CRO-SP-12345',
     },
     {
       email: 'secretaria@teste.com',
-      password: 'secretaria',
+      password: 'Secretaria#Dental2026',
       name: 'Ana Beatriz Lima',
       role: 'SECRETARY' as UserRole,
       cro: null,
@@ -55,7 +60,7 @@ async function seed() {
   const upsertedUsers = new Map<string, { id: string; name: string }>();
 
   for (const user of users) {
-    const passwordHash = await bcrypt.hash(user.password, 10);
+    const passwordHash = await bcrypt.hash(user.password, bcryptRounds);
 
     const upsertedUser = await prisma.user.upsert({
       where: { email: user.email },

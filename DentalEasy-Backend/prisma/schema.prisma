@@ -23,6 +23,7 @@ model Organization {
   updatedAt DateTime @updatedAt
 
   users       User[]
+  authSessions AuthSession[]
   pacientes   Paciente[]
   prontuarios Prontuario[]
   pagamentos  Pagamento[]
@@ -52,10 +53,18 @@ model User {
   avatarUrl      String?
   role           UserRole
   active         Boolean      @default(true)
+  failedLoginAttempts Int     @default(0)
+  loginBlockedUntil DateTime?
+  mfaEnabled     Boolean      @default(false)
+  mfaSecretEncrypted String?
+  mfaBackupCodesHash String[] @default([])
+  mfaEnrolledAt  DateTime?
   createdAt      DateTime     @default(now())
   updatedAt      DateTime     @updatedAt
 
   organization           Organization    @relation(fields: [organizationId], references: [id], onDelete: Cascade)
+  authSessions           AuthSession[]
+  passwordResetTokens    PasswordResetToken[]
   appointmentsAsDentist  Appointment[]   @relation("AppointmentDentist")
   medicalRecordsAsDentist MedicalRecord[] @relation("MedicalRecordDentist")
   prescriptionsAsDentist Prescription[]  @relation("PrescriptionDentist")
@@ -64,6 +73,53 @@ model User {
   notifications AppNotification[]
 
   @@index([organizationId])
+  @@index([organizationId, mfaEnabled])
+}
+
+model AuthSession {
+  id               String   @id
+  userId           String
+  organizationId   String
+  tokenFamilyId    String
+  refreshTokenHash String   @unique
+  parentSessionId  String?
+  userAgent        String?
+  ipAddress        String?
+  deviceName       String?
+  createdAt        DateTime @default(now())
+  expiresAt        DateTime
+  lastUsedAt       DateTime?
+  revokedAt        DateTime?
+  revokeReason     String?
+  mfaVerifiedAt    DateTime?
+
+  user           User         @relation(fields: [userId], references: [id], onDelete: Cascade)
+  organization   Organization @relation(fields: [organizationId], references: [id], onDelete: Cascade)
+  parentSession  AuthSession? @relation("SessionLineage", fields: [parentSessionId], references: [id], onDelete: SetNull)
+  childSessions  AuthSession[] @relation("SessionLineage")
+
+  @@index([userId])
+  @@index([organizationId])
+  @@index([tokenFamilyId])
+  @@index([expiresAt])
+  @@index([revokedAt])
+}
+
+model PasswordResetToken {
+  id               String   @id @default(uuid())
+  userId           String
+  tokenHash        String   @unique
+  createdAt        DateTime @default(now())
+  expiresAt        DateTime
+  usedAt           DateTime?
+  requestedIp      String?
+  requestedUserAgent String?
+
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@index([userId])
+  @@index([expiresAt])
+  @@index([usedAt])
 }
 
 model Paciente {

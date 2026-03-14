@@ -44,3 +44,17 @@ export class NotFoundError extends DomainError {
     this.name = 'NotFoundError';
   }
 }
+
+export class UnsupportedMediaTypeError extends DomainError {
+  constructor(message = 'Tipo de conteudo nao suportado.') {
+    super(message, 415, 'UNSUPPORTED_MEDIA_TYPE');
+    this.name = 'UnsupportedMediaTypeError';
+  }
+}
+
+export class TooManyRequestsError extends DomainError {
+  constructor(message = 'Muitas tentativas. Tente novamente mais tarde.') {
+    super(message, 429, 'TOO_MANY_REQUESTS');
+    this.name = 'TooManyRequestsError';
+  }
+}
