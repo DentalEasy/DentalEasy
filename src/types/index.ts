@@ -36,6 +36,10 @@ export interface Patient {
   birthDate: string;
   avatarUrl?: string;
   serasaStatus: "GREEN" | "YELLOW" | "RED";
+  address?: string;
+  allergies?: string;
+  medicalNotes?: string;
+  active: boolean;
   createdAt: string;
   updatedAt: string;
 }
@@ -392,6 +396,59 @@ export interface MedicalRecord {
   createdAt: string;
 }
 
+export type PrescriptionScope = "ODONTOLOGICAL";
+
+export type PrescriptionCategory = "SIMPLE" | "ANTIBIOTIC" | "CONTROLLED";
+
+export interface PrescriptionMedication {
+  name: string;
+  dcb?: string;
+  pharmaceuticalForm?: string;
+  concentration?: string;
+  dosage?: string;
+  administrationRoute?: string;
+  treatmentDuration?: string;
+  quantity?: string;
+  additionalInstructions?: string;
+}
+
+export interface PrescriptionSupplementarySection {
+  additionalGuidance?: string;
+  observations?: string;
+  rest?: string;
+  diet?: string;
+  adverseReactions?: string;
+  notes?: string;
+}
+
+export interface PrescriptionProfessionalOverride {
+  displayName?: string;
+  councilLabel?: string;
+  specialty?: string;
+  email?: string;
+  phone?: string;
+  signatureLabel?: string;
+}
+
+export interface PrescriptionDetails {
+  version: 1;
+  scope: PrescriptionScope;
+  category: PrescriptionCategory;
+  template: "BRAZIL_CLINIC_A5";
+  title: string;
+  content?: string;
+  medications: PrescriptionMedication[];
+  additionalInstructions?: string;
+  observations?: string;
+  supplementarySection?: PrescriptionSupplementarySection;
+  requiresTwoCopies: boolean;
+  includePatientAddress: boolean;
+  controlledCategory?: string;
+  issuePlace?: string;
+  professionalOverride?: PrescriptionProfessionalOverride;
+  legacyContentLines?: string[];
+}
+
 export interface Prescription {
   id: string;
   organizationId: string;
@@ -400,7 +457,203 @@ export interface Prescription {
   patient: Patient;
   dentist: User;
   content: string;
+  details: PrescriptionDetails;
   createdAt: string;
+  updatedAt: string;
+}
+
+export type SummarySource = "MODERN" | "LEGACY";
+
+export interface PatientSummaryClinicalItem {
+  id: string;
+  source: SummarySource;
+  category: "DIAGNOSIS" | "TREATMENT" | "RECORD";
+  title: string;
+  description: string;
+  occurredAt: string;
+  professionalName?: string;
+  recordType?: MedicalRecord["type"] | "LEGACY_DIAGNOSIS" | "LEGACY_TREATMENT";
+  attachments?: string[];
+}
+
+export interface PatientSummaryProcedureItem {
+  id: string;
+  source: SummarySource;
+  title: string;
+  description: string;
+  occurredAt: string;
+  professionalName?: string;
+}
+
+export interface PatientSummaryAppointmentItem {
+  id: string;
+  source: SummarySource;
+  status: AppointmentStatus;
+  statusOrigin: "EXPLICIT" | "INFERRED";
+  date: string;
+  startTime: string;
+  endTime?: string;
+  startsAt: string;
+  procedure: string;
+  notes?: string;
+  professionalName: string;
+}
+
+export interface PatientSummaryPrescriptionItem {
+  id: string;
+  source: SummarySource;
+  createdAt: string;
+  content: string;
+  professionalName: string;
+}
+
+export interface PatientSummaryDocumentItem {
+  id: string;
+  source: SummarySource;
+  kind: "ATTACHMENT" | "PRESCRIPTION" | "FISCAL_DOCUMENT";
+  title: string;
+  createdAt: string;
+  professionalName?: string;
+  url?: string;
+  contentPreview?: string;
+}
+
+export interface PatientSummaryTreatmentPlanItem {
+  id: string;
+  procedureId?: string;
+  procedureName: string;
+  category?: string;
+  tooth?: string;
+  quantity: number;
+  unitPrice: number;
+  totalPrice: number;
+  notes?: string;
+}
+
+export interface PatientSummaryTreatmentPlan {
+  id: string;
+  title: string;
+  status: TreatmentPlanStatus;
+  discount?: number;
+  totalAmount: number;
+  notes?: string;
+  installments?: number;
+  createdAt: string;
+  updatedAt: string;
+  items: PatientSummaryTreatmentPlanItem[];
+}
+
+export interface PatientSummaryFinancialEntry {
+  id: string;
+  source: SummarySource;
+  includeInTotals: boolean;
+  description: string;
+  type: FinancialRecord["type"];
+  status: FinancialRecord["paymentStatus"];
+  amount: number;
+  paidAmount: number;
+  remainingAmount: number;
+  dueDate: string;
+  paidAt?: string;
+  paymentMethod?: FinancialRecord["paymentMethod"];
+  notes?: string;
+  invoiceNumber?: string;
+  fiscalDocumentRef?: string;
+  receiptNumber?: string;
+  barcode?: string;
+  nfeStatus?: FinancialRecord["nfeStatus"];
+}
+
+export interface PatientSummaryPaymentItem {
+  id: string;
+  source: SummarySource;
+  description: string;
+  amount: number;
+  status: Payment["status"];
+  method?: Payment["method"];
+  paidAt?: string;
+  createdAt: string;
+  notes?: string;
+  receiptNumber?: string;
+}
+
+export interface PatientSummaryPendingItem {
+  id: string;
+  source: SummarySource;
+  kind: "APPOINTMENT" | "FINANCIAL" | "TREATMENT_PLAN" | "ALERT";
+  title: string;
+  description: string;
+  status: string;
+  dueAt?: string;
+}
+
+export interface PatientSummary {
+  patient: Patient;
+  chart: {
+    id?: string;
+    clinicalAccessGranted: boolean;
+    diagnoses: PatientSummaryClinicalItem[];
+    treatments: PatientSummaryClinicalItem[];
+    records: PatientSummaryClinicalItem[];
+    timeline: PatientSummaryClinicalItem[];
+  };
+  appointments: {
+    total: number;
+    upcoming: PatientSummaryAppointmentItem[];
+    past: PatientSummaryAppointmentItem[];
+    pendingCount: number;
+    nextAppointmentAt?: string;
+    lastAppointmentAt?: string;
+  };
+  procedures: {
+    totalPerformed: number;
+    items: PatientSummaryProcedureItem[];
+  };
+  prescriptions: {
+    total: number;
+    items: PatientSummaryPrescriptionItem[];
+  };
+  documents: {
+    total: number;
+    items: PatientSummaryDocumentItem[];
+  };
+  treatmentPlans: {
+    total: number;
+    active: number;
+    items: PatientSummaryTreatmentPlan[];
+  };
+  financial: {
+    entries: PatientSummaryFinancialEntry[];
+    payments: PatientSummaryPaymentItem[];
+    totals: {
+      generatedRevenue: number;
+      patientLinkedCosts: number;
+      trackedProfit: number;
+      totalPaid: number;
+      totalPending: number;
+      totalOverdue: number;
+      totalOutstanding: number;
+      entryCount: number;
+      paymentCount: number;
+    };
+  };
+  pendingItems: PatientSummaryPendingItem[];
+  indicators: {
+    appointmentsTotal: number;
+    upcomingAppointments: number;
+    completedAppointments: number;
+    totalClinicalEntries: number;
+    totalDocuments: number;
+    totalProcedures: number;
+    activeTreatmentPlans: number;
+    prescriptionsIssued: number;
+    pendingFinancialEntries: number;
+    overdueFinancialEntries: number;
+    nextAppointmentAt?: string;
+    lastAppointmentAt?: string;
+    lastClinicalEntryAt?: string;
+    lastPaymentAt?: string;
+  };
 }
 
 export interface WhatsAppMessage {

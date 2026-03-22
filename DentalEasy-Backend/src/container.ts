@@ -15,6 +15,7 @@ import {
   NotificationsApiUseCases,
   PacienteUseCases,
   PatientsApiUseCases,
+  PatientSummaryApiUseCases,
   PrescriptionsApiUseCases,
   ProceduresApiUseCases,
   ProntuarioUseCases,
@@ -60,6 +61,7 @@ export const container = {
   authUseCases: new AuthUseCases(userRepository),
   pacienteUseCases: new PacienteUseCases(pacienteService),
   patientsApiUseCases: new PatientsApiUseCases(),
+  patientSummaryApiUseCases: new PatientSummaryApiUseCases(),
   prontuarioUseCases: new ProntuarioUseCases(
     prontuarioService,
     prontuarioRepository,

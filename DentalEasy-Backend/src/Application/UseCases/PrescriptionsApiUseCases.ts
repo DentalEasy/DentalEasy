@@ -1,5 +1,12 @@
-import { AlignmentType, Document, Packer, Paragraph, TextRun } from 'docx';
+import { Prisma } from '@prisma/client';
 import { CreatePrescriptionDTO, ListPrescriptionsQueryDTO } from '../DTOs';
+import {
+  buildPrescriptionContentPreview,
+  buildPrescriptionDocxBuffer,
+  createStructuredPrescriptionData,
+  resolvePrescriptionData,
+  StructuredPrescriptionData,
+} from '../Prescriptions';
 import { prisma } from '../../Infrastructure/Persistence';
 import { ensureRole } from '../../shared/access-control';
 import { NotFoundError, ValidationError } from '../../shared/errors';
@@ -14,6 +21,7 @@ export interface ApiPrescription {
   patient: ApiPatient;
   dentist: ApiUser;
   content: string;
+  details: StructuredPrescriptionData;
   createdAt: string;
   updatedAt: string;
 }
@@ -24,12 +32,13 @@ export interface PrescriptionDocxExport {
   buffer: Buffer;
 }
 
-const mapPrescription = (record: {
+type PrescriptionRecord = {
   id: string;
   organizationId: string;
   patientId: string;
   dentistUserId: string;
   content: string;
+  metadata: Prisma.JsonValue | null;
   createdAt: Date;
   updatedAt: Date;
   patient: {
@@ -57,17 +66,24 @@ const mapPrescription = (record: {
     avatarUrl: string | null;
     organizationId: string;
   };
-}): ApiPrescription => ({
-  id: record.id,
-  organizationId: record.organizationId,
-  patientId: record.patientId,
-  dentistId: record.dentistUserId,
-  patient: mapPatient(record.patient),
-  dentist: mapUser(record.dentist),
-  content: record.content,
-  createdAt: record.createdAt.toISOString(),
-  updatedAt: record.updatedAt.toISOString(),
-});
+};
+
+const mapPrescription = (record: PrescriptionRecord): ApiPrescription => {
+  const details = resolvePrescriptionData(record.metadata, record.content);
+
+  return {
+    id: record.id,
+    organizationId: record.organizationId,
+    patientId: record.patientId,
+    dentistId: record.dentistUserId,
+    patient: mapPatient(record.patient),
+    dentist: mapUser(record.dentist),
+    content: buildPrescriptionContentPreview(details),
+    details,
+    createdAt: record.createdAt.toISOString(),
+    updatedAt: record.updatedAt.toISOString(),
+  };
+};
 
 const slugify = (value: string): string =>
   value
@@ -117,12 +133,29 @@ export class PrescriptionsApiUseCases {
       throw new ValidationError('Paciente invalido para esta organizacao.');
     }
 
+    const details = createStructuredPrescriptionData({
+      scope: dto.scope,
+      category: dto.category,
+      title: dto.title,
+      content: dto.content,
+      medications: dto.medications,
+      additionalInstructions: dto.additionalInstructions,
+      observations: dto.observations,
+      supplementarySection: dto.supplementarySection,
+      requiresTwoCopies: dto.requiresTwoCopies,
+      includePatientAddress: dto.includePatientAddress,
+      controlledCategory: dto.controlledCategory,
+      issuePlace: dto.issuePlace,
+      professionalOverride: dto.professionalOverride,
+    });
+
     const created = await prisma.prescription.create({
       data: {
         organizationId: user.organizationId,
         patientId: dto.patientId,
         dentistUserId: user.userId,
-        content: dto.content,
+        content: buildPrescriptionContentPreview(details),
+        metadata: details as unknown as Prisma.InputJsonValue,
       },
       include: {
         patient: true,
@@ -155,86 +188,56 @@ export class PrescriptionsApiUseCases {
       throw new NotFoundError('Receita nao encontrada.');
     }
 
-    const document = new Document({
-      sections: [
-        {
-          children: [
-            new Paragraph({
-              alignment: AlignmentType.CENTER,
-              children: [
-                new TextRun({
-                  text: prescription.organization.nome,
-                  bold: true,
-                  size: 32,
-                }),
-              ],
-            }),
-            new Paragraph({
-              alignment: AlignmentType.CENTER,
-              children: [
-                new TextRun({
-                  text: `${prescription.organization.address ?? ''} ${
-                    prescription.organization.city ?? ''
-                  } ${prescription.organization.state ?? ''}`.trim(),
-                  size: 20,
-                }),
-              ],
-            }),
-            new Paragraph({
-              text: '',
-            }),
-            new Paragraph({
-              children: [
-                new TextRun({
-                  text: `Paciente: ${prescription.patient.nome}`,
-                  bold: true,
-                }),
-              ],
-            }),
-            new Paragraph({
-              children: [new TextRun(`CPF: ${prescription.patient.cpf}`)],
-            }),
-            new Paragraph({
-              children: [
-                new TextRun(`Data de nascimento: ${toISODate(prescription.patient.dataNascimento)}`),
-              ],
-            }),
-            new Paragraph({
-              children: [
-                new TextRun(`Profissional: ${prescription.dentist.name}`),
-              ],
-            }),
-            new Paragraph({
-              children: [
-                new TextRun(`Data da receita: ${toISODate(prescription.createdAt)}`),
-              ],
-            }),
-            new Paragraph({
-              text: '',
-            }),
-            new Paragraph({
-              children: [new TextRun({ text: 'Prescricao', bold: true, size: 26 })],
-            }),
-            ...prescription.content
-              .split('\n')
-              .filter((line) => line.trim().length > 0)
-              .map(
-                (line) =>
-                  new Paragraph({
-                    children: [new TextRun(line.trim())],
-                  }),
-              ),
-            new Paragraph({ text: '' }),
-            new Paragraph({
-              alignment: AlignmentType.RIGHT,
-              children: [new TextRun(`${prescription.dentist.name}`)],
-            }),
-          ],
-        },
-      ],
+    const details = resolvePrescriptionData(prescription.metadata, prescription.content);
+    const legacyDentist = await prisma.dentista.findFirst({
+      where: {
+        organizationId: prescription.organizationId,
+        nome: prescription.dentist.name,
+      },
+      select: {
+        cro: true,
+      },
     });
 
-    const buffer = await Packer.toBuffer(document);
+    const buffer = await buildPrescriptionDocxBuffer({
+      organization: {
+        name: prescription.organization.nome,
+        logoUrl: prescription.organization.logoUrl ?? undefined,
+        document: prescription.organization.cnpj ?? undefined,
+        address: prescription.organization.address ?? undefined,
+        city: prescription.organization.city ?? undefined,
+        state: prescription.organization.state ?? undefined,
+        phone: prescription.organization.phone ?? undefined,
+        email: prescription.organization.email ?? undefined,
+      },
+      patient: {
+        name: prescription.patient.nome,
+        birthDate: prescription.patient.dataNascimento,
+        cpf: prescription.patient.cpf,
+        phone: prescription.patient.telefone,
+        email: prescription.patient.email ?? undefined,
+        address: prescription.patient.endereco ?? undefined,
+      },
+      professional: {
+        displayName:
+          details.professionalOverride?.displayName ?? prescription.dentist.name,
+        councilLabel:
+          details.professionalOverride?.councilLabel
+          ?? (legacyDentist?.cro ? `CRO: ${legacyDentist.cro}` : undefined),
+        specialty: details.professionalOverride?.specialty,
+        email:
+          details.professionalOverride?.email
+          ?? prescription.organization.email
+          ?? prescription.dentist.email,
+        phone:
+          details.professionalOverride?.phone ?? prescription.organization.phone ?? undefined,
+        signatureLabel:
+          details.professionalOverride?.signatureLabel ?? 'Assinatura e carimbo',
+      },
+      prescription: details,
+      issuedAt: prescription.createdAt,
+    });
+
     const fileName = `receita-${slugify(prescription.patient.nome)}-${toISODate(
       prescription.createdAt,
     )}.docx`;

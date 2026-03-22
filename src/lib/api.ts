@@ -16,6 +16,7 @@ import type {
   Payment,
   PaymentReceipt,
   Patient,
+  PatientSummary,
   Prescription,
   Procedure,
   ProceduresReport,
@@ -237,6 +238,9 @@ export const listPatients = (params?: ListPatientsParams) =>
 export const getPatientById = (id: string) =>
   request<Patient>(`/patients/${id}`, undefined, true);
 
+export const getPatientSummary = (id: string) =>
+  request<PatientSummary>(`/patients/${id}/summary`, undefined, true);
+
 export const createPatient = (payload: UpsertPatientPayload) =>
   request<Patient>(
     "/patients",
@@ -391,7 +395,19 @@ export const deleteMedicalRecord = (id: string) =>
 
 export interface CreatePrescriptionPayload {
   patientId: string;
-  content: string;
+  scope?: Prescription["details"]["scope"];
+  category?: Prescription["details"]["category"];
+  title?: string;
+  content?: string;
+  medications?: Prescription["details"]["medications"];
+  additionalInstructions?: string;
+  observations?: string;
+  supplementarySection?: Prescription["details"]["supplementarySection"];
+  requiresTwoCopies?: boolean;
+  includePatientAddress?: boolean;
+  controlledCategory?: string;
+  issuePlace?: string;
+  professionalOverride?: Prescription["details"]["professionalOverride"];
 }
 
 export const listPrescriptions = (patientId?: string) =>

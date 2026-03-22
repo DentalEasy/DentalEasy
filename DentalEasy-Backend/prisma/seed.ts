@@ -145,6 +145,7 @@ async function seed() {
   ];
 
   const patientsByCpf = new Map<string, { id: string; nome: string }>();
+  const chartsByCpf = new Map<string, { id: string; pacienteId: string }>();
 
   for (const patient of seededPatients) {
     const upsertedPatient = await prisma.paciente.upsert({
@@ -184,6 +185,22 @@ async function seed() {
       id: upsertedPatient.id,
       nome: upsertedPatient.nome,
     });
+
+    const chart = await prisma.prontuario.upsert({
+      where: {
+        pacienteId: upsertedPatient.id,
+      },
+      update: {},
+      create: {
+        organizationId: organization.id,
+        pacienteId: upsertedPatient.id,
+      },
+    });
+
+    chartsByCpf.set(patient.cpf, {
+      id: chart.id,
+      pacienteId: chart.pacienteId,
+    });
   }
 
   await prisma.appointment.deleteMany({
@@ -209,6 +226,20 @@ async function seed() {
   });
   await prisma.medicalRecord.deleteMany({
     where: { organizationId: organization.id },
+  });
+  await prisma.tratamento.deleteMany({
+    where: {
+      prontuarioId: {
+        in: [...chartsByCpf.values()].map((chart) => chart.id),
+      },
+    },
+  });
+  await prisma.diagnostico.deleteMany({
+    where: {
+      prontuarioId: {
+        in: [...chartsByCpf.values()].map((chart) => chart.id),
+      },
+    },
   });
   await prisma.prescription.deleteMany({
     where: { organizationId: organization.id },
@@ -347,6 +378,36 @@ async function seed() {
         type: 'NOTE',
         title: 'Retorno',
         description: 'Paciente retornou sem dor e boa evolucao.',
+      },
+    ],
+  });
+
+  await prisma.diagnostico.createMany({
+    data: [
+      {
+        prontuarioId: chartsByCpf.get('12345678900')!.id,
+        descricao: 'Gengivite leve em regiao anterior.',
+        data: new Date('2026-03-08T09:00:00.000Z'),
+      },
+      {
+        prontuarioId: chartsByCpf.get('98765432100')!.id,
+        descricao: 'Lesao cariosa em dente 36 com indicacao restauradora.',
+        data: new Date('2026-03-10T14:30:00.000Z'),
+      },
+    ],
+  });
+
+  await prisma.tratamento.createMany({
+    data: [
+      {
+        prontuarioId: chartsByCpf.get('12345678900')!.id,
+        descricao: 'Profilaxia e aplicacao topica de fluor.',
+        data: new Date('2026-03-09T09:30:00.000Z'),
+      },
+      {
+        prontuarioId: chartsByCpf.get('11122233344')!.id,
+        descricao: 'Ajuste oclusal e orientacoes para controle periodontal.',
+        data: new Date('2026-02-18T16:00:00.000Z'),
       },
     ],
   });

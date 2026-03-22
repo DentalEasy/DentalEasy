@@ -47,6 +47,24 @@ router.get(
 );
 
 router.get(
+  '/:id/summary',
+  authorizeRoles(['ADMIN', 'SECRETARY', 'DENTIST']),
+  async (req, res, next) => {
+    try {
+      const user = getUserContext(req);
+      const { id } = idParamSchema.parse(req.params);
+      const data = await container.patientSummaryApiUseCases.getPatientSummary(
+        user,
+        id,
+      );
+      res.json(data);
+    } catch (error) {
+      next(error);
+    }
+  },
+);
+
+router.get(
   '/:id',
   authorizeRoles(['ADMIN', 'SECRETARY', 'DENTIST']),
   async (req, res, next) => {
