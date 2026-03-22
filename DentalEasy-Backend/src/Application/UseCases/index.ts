@@ -5,6 +5,7 @@ export * from './ReceituarioUseCases';
 export * from './ProntuarioUseCases';
 export * from './AuthUseCases';
 export * from './PatientsApiUseCases';
+export * from './PatientSummaryApiUseCases';
 export * from './AppointmentsApiUseCases';
 export * from './MedicalRecordsApiUseCases';
 export * from './PrescriptionsApiUseCases';

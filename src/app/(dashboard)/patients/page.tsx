@@ -277,7 +277,8 @@ export default function PatientsPage() {
               filteredPatients.map((patient) => (
                 <div
                   key={patient.id}
-                  className="flex items-center gap-3 rounded-lg px-3 py-2.5 hover:bg-neutral-50 transition-colors"
+                  className="flex cursor-pointer items-center gap-3 rounded-lg px-3 py-2.5 hover:bg-neutral-50 transition-colors"
+                  onClick={() => router.push(`/patients/${patient.id}`)}
                 >
                   <Avatar className="h-9 w-9">
                     <AvatarImage src={patient.avatarUrl} />
@@ -308,8 +309,8 @@ export default function PatientsPage() {
                   </div>
                   <div className="flex items-center gap-2 shrink-0" onClick={(e) => e.stopPropagation()}>
                     <RoleGate allowedRoles="DENTIST">
-                      <Button variant="outline" size="sm" onClick={() => router.push("/clinical-records")}>
-                        Prontuario
+                      <Button variant="outline" size="sm" onClick={() => router.push(`/patients/${patient.id}`)}>
+                        Hub 360
                       </Button>
                     </RoleGate>
                     <div className="relative">
@@ -332,7 +333,7 @@ export default function PatientsPage() {
                               }}
                             >
                               <Eye className="h-3.5 w-3.5 text-neutral-400" />
-                              Ver detalhes
+                              Abrir hub do paciente
                             </button>
                             <button
                               className="w-full flex items-center gap-2 px-3 py-2 text-sm text-neutral-700 hover:bg-neutral-50 transition-colors cursor-pointer"

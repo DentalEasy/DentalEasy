@@ -341,6 +341,7 @@ model Prescription {
   patientId      String
   dentistUserId  String
   content        String
+  metadata       Json?
   createdAt      DateTime @default(now())
   updatedAt      DateTime @updatedAt
 

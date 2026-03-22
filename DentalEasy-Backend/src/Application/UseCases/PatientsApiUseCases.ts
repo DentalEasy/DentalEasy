@@ -79,21 +79,36 @@ export class PatientsApiUseCases {
       throw new ValidationError('Ja existe paciente com este CPF nesta clinica.');
     }
 
-    const created = await prisma.paciente.create({
-      data: {
-        organizationId: user.organizationId,
-        nome: dto.name,
-        email: dto.email,
-        telefone: dto.phone,
-        cpf: dto.cpf,
-        dataNascimento: dto.birthDate,
-        avatarUrl: dto.avatarUrl,
-        serasaStatus: dto.serasaStatus ?? 'GREEN',
-        endereco: dto.address,
-        alergias: dto.allergies,
-        observacoesMedicas: dto.medicalNotes,
-        active: dto.active ?? true,
-      },
+    const created = await prisma.$transaction(async (tx) => {
+      const patient = await tx.paciente.create({
+        data: {
+          organizationId: user.organizationId,
+          nome: dto.name,
+          email: dto.email,
+          telefone: dto.phone,
+          cpf: dto.cpf,
+          dataNascimento: dto.birthDate,
+          avatarUrl: dto.avatarUrl,
+          serasaStatus: dto.serasaStatus ?? 'GREEN',
+          endereco: dto.address,
+          alergias: dto.allergies,
+          observacoesMedicas: dto.medicalNotes,
+          active: dto.active ?? true,
+        },
+      });
+
+      await tx.prontuario.upsert({
+        where: {
+          pacienteId: patient.id,
+        },
+        update: {},
+        create: {
+          organizationId: user.organizationId,
+          pacienteId: patient.id,
+        },
+      });
+
+      return patient;
     });
 
     return mapPatient(created);
